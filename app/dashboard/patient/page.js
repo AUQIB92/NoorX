@@ -27,7 +27,7 @@ export default function PatientDashboard() {
     fetchAppointments();
   }, []);
 
-  const fetchAppointments = async () => {
+  const fetchAppointments = async (retryCount = 0) => {
     try {
       const token = localStorage.getItem("token");
 
@@ -35,6 +35,8 @@ export default function PatientDashboard() {
         headers: {
           Authorization: `Bearer ${token}`,
         },
+        // Add timeout to prevent hanging requests
+        signal: AbortSignal.timeout(15000), // 15 second timeout
       });
 
       const data = await res.json();
@@ -58,9 +60,48 @@ export default function PatientDashboard() {
 
         setStats({ total, upcoming, completed, cancelled });
       } else {
+        // Check if it's a connection error that we should retry
+        if (
+          data.error &&
+          (data.error.includes("Connection reset") ||
+            data.error.includes("Database connection failed") ||
+            data.error.includes("timed out")) &&
+          retryCount < 3
+        ) {
+          // Wait for a bit before retrying (exponential backoff)
+          const delay = Math.min(1000 * Math.pow(2, retryCount), 8000);
+          console.log(
+            `Connection issue. Retrying in ${delay / 1000} seconds...`
+          );
+
+          setTimeout(() => {
+            fetchAppointments(retryCount + 1);
+          }, delay);
+          return;
+        }
+
         toast.error(data.error || "Failed to fetch appointments");
       }
     } catch (error) {
+      console.error("Error fetching appointments:", error);
+
+      // Retry on network errors
+      if (
+        (error.name === "AbortError" ||
+          error.name === "TypeError" ||
+          error.message.includes("fetch")) &&
+        retryCount < 3
+      ) {
+        // Wait for a bit before retrying (exponential backoff)
+        const delay = Math.min(1000 * Math.pow(2, retryCount), 8000);
+        console.log(`Connection issue. Retrying in ${delay / 1000} seconds...`);
+
+        setTimeout(() => {
+          fetchAppointments(retryCount + 1);
+        }, delay);
+        return;
+      }
+
       toast.error("An error occurred. Please try again.");
     } finally {
       setIsLoading(false);

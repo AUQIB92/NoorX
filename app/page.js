@@ -10,6 +10,7 @@ import {
   FaHeartbeat,
   FaStethoscope,
   FaSignInAlt,
+  FaHeart,
 } from "react-icons/fa";
 
 export default function Home() {
@@ -291,6 +292,10 @@ export default function Home() {
             <p>
               &copy; {new Date().getFullYear()} Dr. Imran's Healthcare and
               Diagnostic Centre. All rights reserved.
+            </p>
+            <p className="flex items-center justify-center mt-2">
+              Developed with <FaHeart className="text-red-500 mx-1" /> by{" "}
+              <span className="font-semibold ml-1">ArwaaLabs</span>
             </p>
           </div>
         </div>

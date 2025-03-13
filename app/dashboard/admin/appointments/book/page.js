@@ -101,6 +101,11 @@ export default function AdminBookAppointment() {
     }
   }, [selectedDoctor, selectedDate, doctorAvailability]);
 
+  // Add a debug effect to log availableSlots when it changes
+  useEffect(() => {
+    console.log("Available slots state updated:", availableSlots);
+  }, [availableSlots]);
+
   const fetchPatients = async (search = "") => {
     // If no search term provided, don't fetch any patients
     if (!search.trim()) {
@@ -319,7 +324,7 @@ export default function AdminBookAppointment() {
                 hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening",
             };
           });
-          
+
         // Sort slots by time
         availableTimeSlots.sort((a, b) => {
           const timeA = a.rawTime.split(":");
@@ -331,7 +336,7 @@ export default function AdminBookAppointment() {
         });
 
         console.log("Final available time slots:", availableTimeSlots);
-        setAvailableSlots(availableTimeSlots.map((slot) => slot.time));
+        setAvailableSlots(availableTimeSlots);
       } else {
         console.error("Failed to fetch slots from API");
         toast.error("Failed to load available slots");
@@ -430,23 +435,23 @@ export default function AdminBookAppointment() {
   };
 
   const isDateAvailable = (dateStr) => {
-    const date = new Date(dateStr);
-    const dayOfWeek = date.getDay(); // 0 = Sunday, 1 = Monday, etc.
-    const days = [
-      "Sunday",
-      "Monday",
-      "Tuesday",
-      "Wednesday",
-      "Thursday",
-      "Friday",
-      "Saturday",
-    ];
-    const dayName = days[dayOfWeek];
+    // If we have slots available, the date is available
+    if (availableSlots && availableSlots.length > 0) {
+      return true;
+    }
 
-    // Check if doctor is available on this day
-    return doctorAvailability.some(
-      (a) => a.day === dayName && a.is_available && a.slots.length > 0
-    );
+    // If we're still checking slots, don't show the error
+    if (isCheckingSlots) {
+      return true;
+    }
+
+    // If we've checked and there are no slots, the date is not available
+    if (selectedDate && !isCheckingSlots && availableSlots.length === 0) {
+      return false;
+    }
+
+    // Default to true to avoid showing the error unnecessarily
+    return true;
   };
 
   const handleNextStep = () => {

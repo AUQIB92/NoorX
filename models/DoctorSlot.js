@@ -8,7 +8,15 @@ const slotSchema = new mongoose.Schema({
   },
   day: {
     type: String,
-    enum: ["Monday", "Tuesday", "Wednesday", "Friday", "Saturday"],
+    enum: [
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+      "Sunday",
+    ],
     required: true,
   },
   date: {
@@ -65,28 +73,28 @@ slotSchema.pre("save", function (next) {
 // For weekly recurring slots (date is null), we need uniqueness on doctor_id, day, start_time
 // For specific date slots, we need uniqueness on doctor_id, date, start_time
 slotSchema.index(
-  { 
-    doctor_id: 1, 
-    day: 1, 
+  {
+    doctor_id: 1,
+    day: 1,
     start_time: 1,
-    date: 1 
-  }, 
-  { 
+    date: 1,
+  },
+  {
     unique: true,
-    partialFilterExpression: { date: null } // This makes the index only apply to documents where date is null
+    partialFilterExpression: { date: null }, // This makes the index only apply to documents where date is null
   }
 );
 
 // Add a separate index for specific date slots
 slotSchema.index(
-  { 
-    doctor_id: 1, 
-    date: 1, 
-    start_time: 1 
-  }, 
-  { 
+  {
+    doctor_id: 1,
+    date: 1,
+    start_time: 1,
+  },
+  {
     unique: true,
-    partialFilterExpression: { date: { $ne: null } } // This makes the index only apply to documents where date is not null
+    partialFilterExpression: { date: { $ne: null } }, // This makes the index only apply to documents where date is not null
   }
 );
 
@@ -103,7 +111,7 @@ if (mongoose.connection.readyState === 1) {
         console.error("Error dropping index:", err);
       }
     });
-    
+
   // Also drop the old compound index
   mongoose.connection.db
     .collection("doctorslots")

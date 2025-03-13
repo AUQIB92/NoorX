@@ -18,6 +18,7 @@ export default function AddDoctorPage() {
   const [formData, setFormData] = useState({
     name: "",
     mobile: "",
+    email: "",
     address: "",
     specialization: "",
     qualifications: "",
@@ -37,10 +38,18 @@ export default function AddDoctorPage() {
     if (
       !formData.name ||
       !formData.mobile ||
+      !formData.email ||
       !formData.address ||
       !formData.specialization
     ) {
       toast.error("Please fill all required fields");
+      return;
+    }
+
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      toast.error("Please enter a valid email address");
       return;
     }
 
@@ -142,6 +151,46 @@ export default function AddDoctorPage() {
                     required
                   />
                 </div>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="email"
+                  className="block text-gray-700 text-sm font-bold mb-2"
+                >
+                  Email <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5 text-gray-400"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                      />
+                    </svg>
+                  </div>
+                  <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    className="input-field pl-10"
+                    placeholder="Enter email address"
+                    required
+                  />
+                </div>
+                <p className="text-sm text-gray-600 mt-1">
+                  Email will be used for appointment reminders and updates.
+                </p>
               </div>
 
               <div className="md:col-span-2">

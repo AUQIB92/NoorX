@@ -16,7 +16,6 @@ const userSchema = new mongoose.Schema({
   email: {
     type: String,
     sparse: true,
-    unique: true,
     default: null,
   },
   password: {
@@ -30,8 +29,8 @@ const userSchema = new mongoose.Schema({
   },
   contactMethod: {
     type: String,
-    enum: ['sms', 'whatsapp', 'email'],
-    default: 'sms',
+    enum: ["sms", "whatsapp", "email"],
+    default: "sms",
   },
   otp: {
     code: {
@@ -67,9 +66,30 @@ const userSchema = new mongoose.Schema({
   },
 });
 
-// Make sure indexes are properly set up - define them only once here
-userSchema.index({ email: 1 }, { sparse: true });
-userSchema.index({ mobile: 1 }, { sparse: true, unique: true });
+// Create compound indexes for uniqueness only among verified users
+userSchema.index(
+  { email: 1, verified: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      email: { $exists: true, $ne: null },
+      verified: true,
+    },
+    sparse: true,
+  }
+);
+
+userSchema.index(
+  { mobile: 1, verified: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      mobile: { $exists: true, $ne: null },
+      verified: true,
+    },
+    sparse: true,
+  }
+);
 
 // Use a different approach to handle model creation to avoid duplicate model errors
 const User = mongoose.models.User || mongoose.model("User", userSchema);

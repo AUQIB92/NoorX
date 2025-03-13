@@ -135,9 +135,12 @@ export default function DashboardLayout({ children, role }) {
     <div className="min-h-screen flex flex-col md:flex-row bg-primary-50">
       {/* Sidebar for desktop */}
       <div className="hidden md:flex md:flex-col md:w-64 bg-primary-600 text-white">
-        <div className="p-4 flex items-center">
-          <FaHospital className="h-8 w-8 mr-2" />
-          <span className="text-xl font-bold">Dr. Imran's Healthcare</span>
+        <div className="p-4 flex flex-col items-center">
+          <div className="flex items-center">
+            <FaHospital className="h-8 w-8 mr-2" />
+            <span className="text-xl font-bold">Dr. Imran's Healthcare</span>
+          </div>
+          <span className="text-sm text-primary-200 mt-1">By ArwaaLabs</span>
         </div>
 
         <div className="p-4 border-t border-primary-500">
@@ -177,9 +180,12 @@ export default function DashboardLayout({ children, role }) {
       {/* Mobile header */}
       <div className="md:hidden bg-primary-600 text-white p-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center">
-            <FaHospital className="h-6 w-6 mr-2" />
-            <span className="font-bold">Dr. Imran's Healthcare</span>
+          <div className="flex flex-col">
+            <div className="flex items-center">
+              <FaHospital className="h-6 w-6 mr-2" />
+              <span className="font-bold">Dr. Imran's Healthcare</span>
+            </div>
+            <span className="text-xs text-primary-200 ml-8">By ArwaaLabs</span>
           </div>
           <button
             onClick={() => setIsMenuOpen(!isMenuOpen)}

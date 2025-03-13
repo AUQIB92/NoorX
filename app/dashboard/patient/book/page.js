@@ -343,7 +343,7 @@ export default function BookAppointment() {
                 hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening",
             };
           });
-          
+
         // Sort slots by time
         availableTimeSlots.sort((a, b) => {
           const timeA = a.rawTime.split(":");
@@ -355,7 +355,7 @@ export default function BookAppointment() {
         });
 
         console.log("Final available time slots:", availableTimeSlots);
-        setAvailableSlots(availableTimeSlots.map((slot) => slot.time));
+        setAvailableSlots(availableTimeSlots);
         setIsCheckingSlots(false);
         return;
       } else {
@@ -400,107 +400,62 @@ export default function BookAppointment() {
           return;
         }
 
-        // Generate slots from availability data
+        // Generate time slots from the availability data
+        const availableTimeSlots = [];
         dayAvailability.slots.forEach((slot) => {
-          try {
-            // Parse hours and minutes
-            const startParts = slot.start_time.split(":");
-            const endParts = slot.end_time.split(":");
+          const [startHour, startMinute] = slot.start_time
+            .split(":")
+            .map(Number);
+          const [endHour, endMinute] = slot.end_time.split(":").map(Number);
 
-            let startHour = parseInt(startParts[0]);
-            let startMinute = parseInt(startParts[1]);
+          // Generate slots every 30 minutes
+          for (
+            let hour = startHour;
+            hour < endHour || (hour === endHour && 0 <= endMinute);
+            hour = minute === 30 ? hour + 1 : hour,
+              minute = minute === 30 ? 0 : 30
+          ) {
+            let minute = startHour === hour ? startMinute : 0;
+            if (minute > 30) minute = 30;
 
-            let endHour = parseInt(endParts[0]);
-            let endMinute = parseInt(endParts[1]);
-
-            // Create start and end Date objects for comparison
-            const selectedDateObj = new Date(selectedDate);
-
-            let startTime = new Date(selectedDateObj);
-            startTime.setHours(startHour, startMinute, 0, 0);
-
-            let endTime = new Date(selectedDateObj);
-            endTime.setHours(endHour, endMinute, 0, 0);
-
-            // Generate slots based on the service duration
-            const slotDuration = serviceDetails?.duration || 30;
-
-            let currentTime = new Date(startTime);
-            while (currentTime < endTime) {
-              const hours = currentTime.getHours();
-              const minutes = currentTime.getMinutes();
-
-              let displayHours = hours % 12;
-              if (displayHours === 0) displayHours = 12;
-              const period = hours >= 12 ? "PM" : "AM";
-
-              const timeSlot = {
-                id: `generated-${hours}-${minutes}`,
-                time: `${displayHours}:${minutes
-                  .toString()
-                  .padStart(2, "0")} ${period}`,
-                rawTime: `${hours}:${minutes}`,
-                isAdminAdded: false,
-                period:
-                  hours < 12 ? "morning" : hours < 17 ? "afternoon" : "evening",
-              };
-
-              availableTimeSlots.push(timeSlot);
-
-              // Move to next slot
-              currentTime.setMinutes(currentTime.getMinutes() + slotDuration);
+            // Skip if we've gone past the end time
+            if (hour > endHour || (hour === endHour && minute >= endMinute)) {
+              continue;
             }
-          } catch (error) {
-            console.error("Error generating slots from availability:", error);
+
+            // Format time for display
+            const ampm = hour >= 12 ? "PM" : "AM";
+            const formattedHour = hour % 12 || 12;
+            const formattedMinute = minute.toString().padStart(2, "0");
+            const timeStr = `${formattedHour}:${formattedMinute} ${ampm}`;
+            const rawTime = `${hour
+              .toString()
+              .padStart(2, "0")}:${formattedMinute}`;
+
+            // Create a slot object with the same format as the API response
+            availableTimeSlots.push({
+              id: `${date.toISOString().split("T")[0]}-${rawTime}`,
+              time: timeStr,
+              rawTime: rawTime,
+              isAdminAdded: false,
+              period:
+                hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening",
+            });
           }
         });
-        
-        // Check which slots are already booked
-        const bookedRes = await fetch(
-          `/api/appointments?doctor=${selectedDoctor}&date=${selectedDate}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
 
-        if (bookedRes.ok) {
-          const bookedData = await bookedRes.json();
-          console.log("Booked appointments data:", bookedData);
+        // Sort slots by time
+        availableTimeSlots.sort((a, b) => {
+          const timeA = a.rawTime.split(":");
+          const timeB = b.rawTime.split(":");
+          const hourA = parseInt(timeA[0]);
+          const hourB = parseInt(timeB[0]);
+          if (hourA !== hourB) return hourA - hourB;
+          return parseInt(timeA[1]) - parseInt(timeB[1]);
+        });
 
-          // Get all booked time slots for the selected doctor and date
-          const bookedTimes = bookedData.appointments
-            .filter(
-              (app) => app.status === "pending" || app.status === "confirmed"
-            )
-            .map((app) => app.time);
-
-          console.log("Booked times:", bookedTimes);
-
-          // Filter out booked slots
-          availableTimeSlots = availableTimeSlots.filter(
-            (slot) => !bookedTimes.includes(slot.time)
-          );
-
-          // Sort slots by time
-          availableTimeSlots.sort((a, b) => {
-            const timeA = a.rawTime.split(":");
-            const timeB = b.rawTime.split(":");
-            const hourA = parseInt(timeA[0]);
-            const hourB = parseInt(timeB[0]);
-            if (hourA !== hourB) return hourA - hourB;
-            return parseInt(timeA[1]) - parseInt(timeB[1]);
-          });
-
-          console.log("Final available time slots:", availableTimeSlots);
-          setAvailableSlots(availableTimeSlots.map((slot) => slot.time));
-        } else {
-          console.log(
-            "Failed to check booked appointments, showing all available slots"
-          );
-          setAvailableSlots(availableTimeSlots.map((slot) => slot.time));
-        }
+        console.log("Final available time slots:", availableTimeSlots);
+        setAvailableSlots(availableTimeSlots);
       }
     } catch (error) {
       console.error("Error checking available slots:", error);
@@ -557,9 +512,24 @@ export default function BookAppointment() {
   };
 
   const isDateAvailable = (dateStr) => {
+    // If we have slots available, the date is available
+    if (availableSlots && availableSlots.length > 0) {
+      return true;
+    }
+
+    // If we're still checking slots, don't show the error
+    if (isCheckingSlots) {
+      return true;
+    }
+
+    // If we've checked and there are no slots, the date is not available
+    if (selectedDate && !isCheckingSlots && availableSlots.length === 0) {
+      return false;
+    }
+
+    // If we don't have availability data, just return true to allow selection
+    // We'll check more thoroughly when they actually try to see slots
     if (!doctorAvailability || doctorAvailability.length === 0) {
-      // If we don't have availability data, just return true to allow selection
-      // We'll check more thoroughly when they actually try to see slots
       return true;
     }
 
@@ -923,149 +893,152 @@ export default function BookAppointment() {
                   </div>
                 ) : selectedDate && availableSlots.length > 0 ? (
                   <div className="space-y-4">
-                    {/* Group slots by time periods */}
-                    {(() => {
-                      // Helper function to determine period
-                      const getTimePeriod = (timeStr) => {
-                        const hour = parseInt(timeStr.split(":")[0]);
-                        if (hour < 12) return "morning";
-                        if (hour < 16) return "afternoon";
-                        return "evening";
-                      };
+                    {/* Morning slots */}
+                    {availableSlots.some(
+                      (slot) => slot.period === "morning"
+                    ) && (
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
+                          <span className="bg-yellow-100 p-1.5 rounded-full mr-2 flex items-center justify-center">
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-4 w-4 text-yellow-600"
+                              viewBox="0 0 20 20"
+                              fill="currentColor"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                          </span>
+                          Morning Slots
+                        </h4>
+                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                          {availableSlots
+                            .filter((slot) => slot.period === "morning")
+                            .map((slot) => (
+                              <button
+                                key={slot.id}
+                                type="button"
+                                onClick={() => setSelectedTime(slot.time)}
+                                className={`relative p-3 text-sm font-medium rounded-lg transition-all transform ${
+                                  selectedTime === slot.time
+                                    ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg scale-105 hover:from-blue-600 hover:to-blue-700"
+                                    : "bg-white border border-gray-200 hover:border-blue-300 hover:bg-blue-50"
+                                } ${
+                                  slot.isAdminAdded
+                                    ? "before:absolute before:w-1 before:h-full before:bg-green-500 before:left-0 before:top-0 before:rounded-l-lg"
+                                    : ""
+                                }`}
+                              >
+                                {slot.time}
+                              </button>
+                            ))}
+                        </div>
+                      </div>
+                    )}
 
-                      // Group slots by period
-                      const groupedSlots = {
-                        morning: availableSlots.filter(
-                          (time) =>
-                            getTimePeriod(time.split(" ")[0]) === "morning"
-                        ),
-                        afternoon: availableSlots.filter(
-                          (time) =>
-                            getTimePeriod(time.split(" ")[0]) === "afternoon"
-                        ),
-                        evening: availableSlots.filter(
-                          (time) =>
-                            getTimePeriod(time.split(" ")[0]) === "evening"
-                        ),
-                      };
+                    {/* Afternoon slots */}
+                    {availableSlots.some(
+                      (slot) => slot.period === "afternoon"
+                    ) && (
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
+                          <span className="bg-orange-100 p-1.5 rounded-full mr-2 flex items-center justify-center">
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-4 w-4 text-orange-600"
+                              viewBox="0 0 20 20"
+                              fill="currentColor"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 2a6 6 0 100 12A6 6 0 0010 4zm2 6a2 2 0 11-4 0 2 2 0 014 0z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                          </span>
+                          Afternoon Slots
+                        </h4>
+                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                          {availableSlots
+                            .filter((slot) => slot.period === "afternoon")
+                            .map((slot) => (
+                              <button
+                                key={slot.id}
+                                type="button"
+                                onClick={() => setSelectedTime(slot.time)}
+                                className={`relative p-3 text-sm font-medium rounded-lg transition-all transform ${
+                                  selectedTime === slot.time
+                                    ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg scale-105 hover:from-orange-600 hover:to-orange-700"
+                                    : "bg-white border border-gray-200 hover:border-orange-300 hover:bg-orange-50"
+                                } ${
+                                  slot.isAdminAdded
+                                    ? "before:absolute before:w-1 before:h-full before:bg-green-500 before:left-0 before:top-0 before:rounded-l-lg"
+                                    : ""
+                                }`}
+                              >
+                                {slot.time}
+                              </button>
+                            ))}
+                        </div>
+                      </div>
+                    )}
 
-                      return (
-                        <>
-                          {/* Morning slots */}
-                          {groupedSlots.morning.length > 0 && (
-                            <div>
-                              <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
-                                <span className="bg-yellow-100 p-1.5 rounded-full mr-2 flex items-center justify-center">
-                                  <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    className="h-4 w-4 text-yellow-600"
-                                    viewBox="0 0 20 20"
-                                    fill="currentColor"
-                                  >
-                                    <path
-                                      fillRule="evenodd"
-                                      d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"
-                                      clipRule="evenodd"
-                                    />
-                                  </svg>
-                                </span>
-                                Morning Slots
-                              </h4>
-                              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                                {groupedSlots.morning.map((time) => (
-                                  <button
-                                    key={time}
-                                    type="button"
-                                    onClick={() => setSelectedTime(time)}
-                                    className={`p-3 text-sm font-medium rounded-lg transition-all transform ${
-                                      selectedTime === time
-                                        ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg scale-105 hover:from-blue-600 hover:to-blue-700"
-                                        : "bg-white border border-gray-200 hover:border-blue-300 hover:bg-blue-50"
-                                    }`}
-                                  >
-                                    {time}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          )}
+                    {/* Evening slots */}
+                    {availableSlots.some(
+                      (slot) => slot.period === "evening"
+                    ) && (
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
+                          <span className="bg-indigo-100 p-1.5 rounded-full mr-2 flex items-center justify-center">
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-4 w-4 text-indigo-600"
+                              viewBox="0 0 20 20"
+                              fill="currentColor"
+                            >
+                              <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+                            </svg>
+                          </span>
+                          Evening Slots
+                        </h4>
+                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                          {availableSlots
+                            .filter((slot) => slot.period === "evening")
+                            .map((slot) => (
+                              <button
+                                key={slot.id}
+                                type="button"
+                                onClick={() => setSelectedTime(slot.time)}
+                                className={`relative p-3 text-sm font-medium rounded-lg transition-all transform ${
+                                  selectedTime === slot.time
+                                    ? "bg-gradient-to-r from-indigo-500 to-indigo-600 text-white shadow-lg scale-105 hover:from-indigo-600 hover:to-indigo-700"
+                                    : "bg-white border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50"
+                                } ${
+                                  slot.isAdminAdded
+                                    ? "before:absolute before:w-1 before:h-full before:bg-green-500 before:left-0 before:top-0 before:rounded-l-lg"
+                                    : ""
+                                }`}
+                              >
+                                {slot.time}
+                              </button>
+                            ))}
+                        </div>
+                      </div>
+                    )}
 
-                          {/* Afternoon slots */}
-                          {groupedSlots.afternoon.length > 0 && (
-                            <div>
-                              <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
-                                <span className="bg-orange-100 p-1.5 rounded-full mr-2 flex items-center justify-center">
-                                  <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    className="h-4 w-4 text-orange-600"
-                                    viewBox="0 0 20 20"
-                                    fill="currentColor"
-                                  >
-                                    <path
-                                      fillRule="evenodd"
-                                      d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 2a6 6 0 100 12A6 6 0 0010 4zm2 6a2 2 0 11-4 0 2 2 0 014 0z"
-                                      clipRule="evenodd"
-                                    />
-                                  </svg>
-                                </span>
-                                Afternoon Slots
-                              </h4>
-                              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                                {groupedSlots.afternoon.map((time) => (
-                                  <button
-                                    key={time}
-                                    type="button"
-                                    onClick={() => setSelectedTime(time)}
-                                    className={`p-3 text-sm font-medium rounded-lg transition-all transform ${
-                                      selectedTime === time
-                                        ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg scale-105 hover:from-orange-600 hover:to-orange-700"
-                                        : "bg-white border border-gray-200 hover:border-orange-300 hover:bg-orange-50"
-                                    }`}
-                                  >
-                                    {time}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Evening slots */}
-                          {groupedSlots.evening.length > 0 && (
-                            <div>
-                              <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
-                                <span className="bg-indigo-100 p-1.5 rounded-full mr-2 flex items-center justify-center">
-                                  <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    className="h-4 w-4 text-indigo-600"
-                                    viewBox="0 0 20 20"
-                                    fill="currentColor"
-                                  >
-                                    <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
-                                  </svg>
-                                </span>
-                                Evening Slots
-                              </h4>
-                              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                                {groupedSlots.evening.map((time) => (
-                                  <button
-                                    key={time}
-                                    type="button"
-                                    onClick={() => setSelectedTime(time)}
-                                    className={`p-3 text-sm font-medium rounded-lg transition-all transform ${
-                                      selectedTime === time
-                                        ? "bg-gradient-to-r from-indigo-500 to-indigo-600 text-white shadow-lg scale-105 hover:from-indigo-600 hover:to-indigo-700"
-                                        : "bg-white border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50"
-                                    }`}
-                                  >
-                                    {time}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </>
-                      );
-                    })()}
+                    {/* Legend for special slots */}
+                    {availableSlots.some((slot) => slot.isAdminAdded) && (
+                      <div className="mt-4 bg-gray-50 p-3 rounded-lg">
+                        <p className="text-xs text-gray-600 flex items-center">
+                          <span className="w-3 h-3 bg-green-500 rounded-sm mr-2"></span>
+                          Special slots added by admin
+                        </p>
+                      </div>
+                    )}
                   </div>
                 ) : selectedDate ? (
                   <div className="flex flex-col items-center justify-center h-40 bg-red-50 rounded-lg p-6 text-center">

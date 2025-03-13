@@ -33,13 +33,22 @@ async function updateDoctor(req, { params }) {
   try {
     await connectToDatabase();
     const doctorId = params.id;
-    const { name, mobile, address, specialization, qualifications } =
+    const { name, mobile, email, address, specialization, qualifications } =
       await req.json();
 
     // Validate required fields
-    if (!name || !mobile || !address || !specialization) {
+    if (!name || !mobile || !email || !address || !specialization) {
       return NextResponse.json(
         { error: "All fields are required" },
+        { status: 400 }
+      );
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return NextResponse.json(
+        { error: "Please enter a valid email address" },
         { status: 400 }
       );
     }
@@ -65,9 +74,24 @@ async function updateDoctor(req, { params }) {
       }
     }
 
+    // Check if email is already used by another user
+    if (email !== doctor.email) {
+      const existingUser = await User.findOne({
+        email,
+        _id: { $ne: doctorId },
+      });
+      if (existingUser) {
+        return NextResponse.json(
+          { error: "Email address is already in use" },
+          { status: 409 }
+        );
+      }
+    }
+
     // Update doctor
     doctor.name = name;
     doctor.mobile = mobile;
+    doctor.email = email;
     doctor.address = address;
     doctor.specialization = specialization;
     doctor.qualifications = qualifications;
@@ -81,6 +105,7 @@ async function updateDoctor(req, { params }) {
           id: doctor._id,
           name: doctor.name,
           mobile: doctor.mobile,
+          email: doctor.email,
           specialization: doctor.specialization,
           qualifications: doctor.qualifications,
           address: doctor.address,

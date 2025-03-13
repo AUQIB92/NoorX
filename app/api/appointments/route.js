@@ -13,7 +13,24 @@ import { sendBookingConfirmationEmail } from "../../../lib/emailService";
 // Get appointments based on user role
 async function getAppointments(req) {
   try {
-    await connectToDatabase();
+    console.log(
+      "getAppointments called with user:",
+      req.user?.id,
+      "role:",
+      req.user?.role
+    );
+
+    // Try to connect to the database with retries
+    try {
+      await connectToDatabase();
+      console.log("Database connection successful");
+    } catch (dbError) {
+      console.error("Database connection error in getAppointments:", dbError);
+      return NextResponse.json(
+        { error: "Database connection failed. Please try again later." },
+        { status: 503 }
+      );
+    }
 
     const { user } = req;
     const { searchParams } = new URL(req.url);
@@ -26,13 +43,16 @@ async function getAppointments(req) {
     // Filter appointments based on user role (unless specific filters are provided)
     if (!doctorId && user.role === "patient") {
       query.patient_id = user.id;
+      console.log("Filtering appointments for patient:", user.id);
     } else if (!doctorId && user.role === "doctor") {
       query.doctor_id = user.id;
+      console.log("Filtering appointments for doctor:", user.id);
     }
 
     // Filter by doctor if provided
     if (doctorId) {
       query.doctor_id = doctorId;
+      console.log("Filtering appointments for doctor ID:", doctorId);
     }
 
     // Filter by date if provided
@@ -48,23 +68,50 @@ async function getAppointments(req) {
         $gte: startDate,
         $lte: endDate,
       };
+      console.log("Filtering appointments for date:", date);
     }
 
     // Filter by status if provided
     if (status) {
       query.status = status;
+      console.log("Filtering appointments by status:", status);
     }
 
-    // Get appointments with populated user details
-    const appointments = await Appointment.find(query)
+    console.log("Final query:", JSON.stringify(query));
+
+    // Set a timeout for the database query
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Database query timeout")), 15000)
+    );
+
+    // Execute the database query with a timeout
+    const queryPromise = Appointment.find(query)
       .populate("patient_id", "name mobile")
       .populate("doctor_id", "name specialization")
       .populate("service_id", "name price duration")
       .sort({ date: 1, time: 1 });
 
+    // Race between the query and the timeout
+    const appointments = await Promise.race([queryPromise, timeoutPromise]);
+    console.log(`Found ${appointments.length} appointments`);
+
     return NextResponse.json({ appointments }, { status: 200 });
   } catch (error) {
     console.error("Get appointments error:", error);
+
+    // Handle specific error types
+    if (error.code === "ECONNRESET") {
+      return NextResponse.json(
+        { error: "Connection reset. Please try again." },
+        { status: 503 }
+      );
+    } else if (error.message === "Database query timeout") {
+      return NextResponse.json(
+        { error: "Request timed out. Please try again." },
+        { status: 504 }
+      );
+    }
+
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
@@ -244,8 +291,10 @@ async function createAppointment(req) {
       } else {
         // For weekly recurring slots, create a new specific date slot that is marked as booked
         // This prevents the weekly slot from being permanently marked as booked
-        console.log(`Creating booked specific date slot for weekly slot ${validSlot._id}`);
-        
+        console.log(
+          `Creating booked specific date slot for weekly slot ${validSlot._id}`
+        );
+
         // First, check if a specific date slot already exists for this doctor, date, and time
         const specificDateObj = new Date(date);
         const existingSpecificSlot = await DoctorSlot.findOne({
@@ -254,17 +303,21 @@ async function createAppointment(req) {
             $gte: new Date(specificDateObj.setHours(0, 0, 0, 0)),
             $lte: new Date(specificDateObj.setHours(23, 59, 59, 999)),
           },
-          start_time: validSlot.start_time
+          start_time: validSlot.start_time,
         });
-        
+
         if (existingSpecificSlot) {
           // If a specific date slot already exists, update it instead of creating a new one
-          console.log(`Found existing specific date slot ${existingSpecificSlot._id}, updating it`);
+          console.log(
+            `Found existing specific date slot ${existingSpecificSlot._id}, updating it`
+          );
           existingSpecificSlot.is_available = false;
           existingSpecificSlot.booked_by = actualPatientId;
           existingSpecificSlot.booking_time = new Date();
           await existingSpecificSlot.save();
-          console.log(`Updated existing specific date slot: ${existingSpecificSlot._id}`);
+          console.log(
+            `Updated existing specific date slot: ${existingSpecificSlot._id}`
+          );
         } else {
           // Create a new specific date slot
           const bookedSlot = new DoctorSlot({
@@ -279,7 +332,7 @@ async function createAppointment(req) {
             booked_by: actualPatientId,
             booking_time: new Date(),
           });
-          
+
           try {
             await bookedSlot.save();
             console.log(`Created booked specific date slot: ${bookedSlot._id}`);
@@ -325,11 +378,15 @@ async function createAppointment(req) {
           time: appointment.time,
           amount: appointment.payment_amount,
           paymentMethod: appointment.payment_method,
-          notes: appointment.notes || 'None'
+          notes: appointment.notes || "None",
         };
 
         // Send email to patient
-        await sendBookingConfirmationEmail(patient.email, patient.name, emailData);
+        await sendBookingConfirmationEmail(
+          patient.email,
+          patient.name,
+          emailData
+        );
         console.log(`Booking confirmation email sent to ${patient.email}`);
       } catch (emailError) {
         // Just log the error but don't fail the booking
