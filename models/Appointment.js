@@ -47,6 +47,19 @@ const appointmentSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
+  // Razorpay payment details
+  payment_id: {
+    type: String,
+    default: null,
+  },
+  razorpay_order_id: {
+    type: String,
+    default: null,
+  },
+  razorpay_signature: {
+    type: String,
+    default: null,
+  },
   booked_by: {
     type: String,
     enum: ["patient", "admin", "doctor"],

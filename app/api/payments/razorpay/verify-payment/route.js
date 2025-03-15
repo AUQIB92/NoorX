@@ -62,6 +62,22 @@ async function verifyPayment(req) {
         generated: generated_signature,
         received: razorpay_signature,
       });
+      
+      // If signature is invalid, mark the appointment as failed
+      if (appointmentId) {
+        try {
+          const appointment = await Appointment.findById(appointmentId);
+          
+          if (appointment) {
+            appointment.payment_status = "failed";
+            await appointment.save();
+            console.log("Appointment marked as payment failed due to invalid signature");
+          }
+        } catch (err) {
+          console.error("Error updating appointment payment status to failed:", err);
+        }
+      }
+      
       return NextResponse.json(
         { error: "Invalid payment signature" },
         { status: 400 }
@@ -93,7 +109,7 @@ async function verifyPayment(req) {
         await appointment.save();
         console.log("Appointment updated with payment details");
 
-        // Send confirmation SMS and email
+        // Send confirmation SMS and email only after successful payment verification
         try {
           // Prepare data for the SMS
           const smsData = {
@@ -152,6 +168,22 @@ async function verifyPayment(req) {
     });
   } catch (error) {
     console.error("Error verifying Razorpay payment:", error);
+    
+    // If there's an error in payment verification, mark the appointment as failed
+    if (body && body.appointmentId) {
+      try {
+        const appointment = await Appointment.findById(body.appointmentId);
+        
+        if (appointment) {
+          appointment.payment_status = "failed";
+          await appointment.save();
+          console.log("Appointment marked as payment failed due to verification error");
+        }
+      } catch (err) {
+        console.error("Error updating appointment payment status to failed:", err);
+      }
+    }
+    
     return NextResponse.json(
       { 
         error: "Failed to verify payment",

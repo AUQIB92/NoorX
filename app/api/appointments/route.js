@@ -135,7 +135,17 @@ async function createAppointment(req) {
       payment_amount = 0,
       booked_by = "patient",
       patient_id, // Allow admin to book for a specific patient
+      payment_id, // Razorpay payment ID
+      razorpay_order_id, // Razorpay order ID
+      razorpay_signature, // Razorpay signature
     } = await req.json();
+
+    console.log("Appointment creation request with payment details:", {
+      payment_method,
+      payment_id,
+      razorpay_order_id,
+      razorpay_signature
+    });
 
     // Determine the patient ID (either from request or from authenticated user)
     const actualPatientId = patient_id || user.id;
@@ -144,6 +154,19 @@ async function createAppointment(req) {
     if (!doctor_id || !service_id || !date || !time) {
       return NextResponse.json(
         { error: "Doctor, service, date and time are required" },
+        { status: 400 }
+      );
+    }
+
+    // For online payments, verify that payment details are provided
+    if (payment_method === "online" && (!payment_id || !razorpay_order_id || !razorpay_signature)) {
+      console.error("Missing payment details for online payment", {
+        payment_id,
+        razorpay_order_id,
+        razorpay_signature
+      });
+      return NextResponse.json(
+        { error: "Payment details are required for online payment" },
         { status: 400 }
       );
     }
@@ -274,8 +297,15 @@ async function createAppointment(req) {
       // If booked by admin, mark as confirmed
       status: booked_by === "admin" ? "confirmed" : "pending",
       // If payment method is cash, mark payment as pending
-      payment_status: payment_method === "cash" ? "pending" : "completed",
-      payment_date: payment_method === "cash" ? null : new Date(),
+      // If payment method is online and payment_id is provided, mark as completed
+      payment_status: payment_method === "cash" ? "pending" : 
+                     (payment_method === "online" && payment_id) ? "completed" : "pending",
+      payment_date: (payment_method === "cash" || 
+                    (payment_method === "online" && !payment_id)) ? null : new Date(),
+      // Add Razorpay payment details if provided
+      payment_id: payment_id || null,
+      razorpay_order_id: razorpay_order_id || null,
+      razorpay_signature: razorpay_signature || null,
     });
 
     await appointment.save();
@@ -369,15 +399,22 @@ async function createAppointment(req) {
     // Send booking confirmation email if patient has an email
     if (patient.email) {
       try {
-        // Prepare data for the email
+        // Get doctor and service details for the email
+        const populatedDoctor = await User.findById(doctor_id).select('name specialization');
+        const populatedService = await Service.findById(service_id).select('name price duration');
+        
+        // Prepare data for the email with complete details
         const emailData = {
           appointmentId: appointment._id,
-          doctorName: doctor.name,
-          serviceName: service.name,
+          doctorName: populatedDoctor ? populatedDoctor.name : 'Doctor',
+          doctorSpecialization: populatedDoctor ? populatedDoctor.specialization : '',
+          serviceName: populatedService ? populatedService.name : 'Service',
+          servicePrice: populatedService ? populatedService.price : 0,
           date: appointment.date,
           time: appointment.time,
           amount: appointment.payment_amount,
           paymentMethod: appointment.payment_method,
+          paymentId: appointment.payment_id || '',
           notes: appointment.notes || "None",
         };
 
