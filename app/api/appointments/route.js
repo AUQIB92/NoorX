@@ -144,7 +144,7 @@ async function createAppointment(req) {
       payment_method,
       payment_id,
       razorpay_order_id,
-      razorpay_signature
+      razorpay_signature,
     });
 
     // Determine the patient ID (either from request or from authenticated user)
@@ -159,11 +159,14 @@ async function createAppointment(req) {
     }
 
     // For online payments, verify that payment details are provided
-    if (payment_method === "online" && (!payment_id || !razorpay_order_id || !razorpay_signature)) {
+    if (
+      payment_method === "online" &&
+      (!payment_id || !razorpay_order_id || !razorpay_signature)
+    ) {
       console.error("Missing payment details for online payment", {
         payment_id,
         razorpay_order_id,
-        razorpay_signature
+        razorpay_signature,
       });
       return NextResponse.json(
         { error: "Payment details are required for online payment" },
@@ -298,10 +301,17 @@ async function createAppointment(req) {
       status: booked_by === "admin" ? "confirmed" : "pending",
       // If payment method is cash, mark payment as pending
       // If payment method is online and payment_id is provided, mark as completed
-      payment_status: payment_method === "cash" ? "pending" : 
-                     (payment_method === "online" && payment_id) ? "completed" : "pending",
-      payment_date: (payment_method === "cash" || 
-                    (payment_method === "online" && !payment_id)) ? null : new Date(),
+      payment_status:
+        payment_method === "cash"
+          ? "pending"
+          : payment_method === "online" && payment_id
+          ? "completed"
+          : "pending",
+      payment_date:
+        payment_method === "cash" ||
+        (payment_method === "online" && !payment_id)
+          ? null
+          : new Date(),
       // Add Razorpay payment details if provided
       payment_id: payment_id || null,
       razorpay_order_id: razorpay_order_id || null,
@@ -400,21 +410,27 @@ async function createAppointment(req) {
     if (patient.email) {
       try {
         // Get doctor and service details for the email
-        const populatedDoctor = await User.findById(doctor_id).select('name specialization');
-        const populatedService = await Service.findById(service_id).select('name price duration');
-        
+        const populatedDoctor = await User.findById(doctor_id).select(
+          "name specialization"
+        );
+        const populatedService = await Service.findById(service_id).select(
+          "name price duration"
+        );
+
         // Prepare data for the email with complete details
         const emailData = {
           appointmentId: appointment._id,
-          doctorName: populatedDoctor ? populatedDoctor.name : 'Doctor',
-          doctorSpecialization: populatedDoctor ? populatedDoctor.specialization : '',
-          serviceName: populatedService ? populatedService.name : 'Service',
+          doctorName: populatedDoctor ? populatedDoctor.name : "Doctor",
+          doctorSpecialization: populatedDoctor
+            ? populatedDoctor.specialization
+            : "",
+          serviceName: populatedService ? populatedService.name : "Service",
           servicePrice: populatedService ? populatedService.price : 0,
           date: appointment.date,
           time: appointment.time,
           amount: appointment.payment_amount,
           paymentMethod: appointment.payment_method,
-          paymentId: appointment.payment_id || '',
+          paymentId: appointment.payment_id || "",
           notes: appointment.notes || "None",
         };
 

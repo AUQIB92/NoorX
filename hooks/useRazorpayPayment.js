@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { toast } from 'react-toastify';
+import { useState, useEffect } from "react";
+import { toast } from "react-toastify";
 
 /**
  * Custom hook for Razorpay payment integration
@@ -14,7 +14,7 @@ const useRazorpayPayment = () => {
   // Load Razorpay script on component mount
   useEffect(() => {
     console.log("useRazorpayPayment hook initialized");
-    
+
     // Check if Razorpay is already loaded
     if (window.Razorpay) {
       console.log("Razorpay already loaded in window object");
@@ -23,23 +23,23 @@ const useRazorpayPayment = () => {
     }
 
     console.log("Loading Razorpay script...");
-    
+
     // Load Razorpay script
-    const script = document.createElement('script');
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
     script.async = true;
     script.onload = () => {
       console.log("Razorpay script loaded successfully");
       setIsScriptLoaded(true);
     };
     script.onerror = (error) => {
-      console.error('Failed to load Razorpay script:', error);
+      console.error("Failed to load Razorpay script:", error);
       setIsScriptLoaded(false);
     };
-    
+
     document.body.appendChild(script);
     console.log("Razorpay script added to document body");
-    
+
     // Cleanup function
     return () => {
       // Only remove the script if it was added by this hook
@@ -60,27 +60,27 @@ const useRazorpayPayment = () => {
    */
   const createOrder = async (orderData, token) => {
     console.log("createOrder called with data:", JSON.stringify(orderData));
-    
+
     try {
       if (!token) {
         console.error("No authentication token provided for createOrder");
         throw new Error("Authentication token is required");
       }
-      
+
       console.log("Making API request to create Razorpay order...");
-      const response = await fetch('/api/payments/razorpay/create-order', {
-        method: 'POST',
+      const response = await fetch("/api/payments/razorpay/create-order", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(orderData),
         // Add cache control to prevent caching
-        cache: 'no-store'
+        cache: "no-store",
       });
-      
+
       console.log("Order API response status:", response.status);
-      
+
       // Check if the response is JSON before trying to parse it
       const contentType = response.headers.get("content-type");
       if (!contentType || !contentType.includes("application/json")) {
@@ -88,26 +88,32 @@ const useRazorpayPayment = () => {
         // Try to get the text response to see what's being returned
         const textResponse = await response.text();
         console.error("Non-JSON response:", textResponse);
-        throw new Error("Server returned an invalid response format. Please try again later.");
+        throw new Error(
+          "Server returned an invalid response format. Please try again later."
+        );
       }
-      
+
       let data;
       try {
         data = await response.json();
         console.log("Order API response data:", JSON.stringify(data));
       } catch (jsonError) {
         console.error("Failed to parse JSON response:", jsonError);
-        throw new Error("Failed to parse server response. Please try again later.");
+        throw new Error(
+          "Failed to parse server response. Please try again later."
+        );
       }
-      
+
       if (!response.ok) {
         console.error("Failed to create order:", data);
-        throw new Error(data.error || data.details || 'Failed to create payment order');
+        throw new Error(
+          data.error || data.details || "Failed to create payment order"
+        );
       }
-      
+
       return data;
     } catch (error) {
-      console.error('Error creating Razorpay order:', error);
+      console.error("Error creating Razorpay order:", error);
       throw error;
     }
   };
@@ -124,32 +130,39 @@ const useRazorpayPayment = () => {
    */
   const verifyPayment = async (paymentData, token) => {
     console.log("verifyPayment called with data:", JSON.stringify(paymentData));
-    
+
     try {
       if (!token) {
         console.error("No authentication token provided for verifyPayment");
         throw new Error("Authentication token is required");
       }
-      
-      if (!paymentData.razorpay_payment_id || !paymentData.razorpay_order_id || !paymentData.razorpay_signature) {
-        console.error("Missing required payment verification data:", paymentData);
+
+      if (
+        !paymentData.razorpay_payment_id ||
+        !paymentData.razorpay_order_id ||
+        !paymentData.razorpay_signature
+      ) {
+        console.error(
+          "Missing required payment verification data:",
+          paymentData
+        );
         throw new Error("Missing required payment verification data");
       }
-      
+
       console.log("Making API request to verify Razorpay payment...");
-      const response = await fetch('/api/payments/razorpay/verify-payment', {
-        method: 'PUT',
+      const response = await fetch("/api/payments/razorpay/verify-payment", {
+        method: "PUT",
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(paymentData),
         // Add cache control to prevent caching
-        cache: 'no-store'
+        cache: "no-store",
       });
-      
+
       console.log("Verify payment API response status:", response.status);
-      
+
       // Check if the response is JSON before trying to parse it
       const contentType = response.headers.get("content-type");
       if (!contentType || !contentType.includes("application/json")) {
@@ -157,26 +170,32 @@ const useRazorpayPayment = () => {
         // Try to get the text response to see what's being returned
         const textResponse = await response.text();
         console.error("Non-JSON response:", textResponse);
-        throw new Error("Server returned an invalid response format. Please try again later.");
+        throw new Error(
+          "Server returned an invalid response format. Please try again later."
+        );
       }
-      
+
       let data;
       try {
         data = await response.json();
         console.log("Verify payment API response data:", JSON.stringify(data));
       } catch (jsonError) {
         console.error("Failed to parse JSON response:", jsonError);
-        throw new Error("Failed to parse server response. Please try again later.");
+        throw new Error(
+          "Failed to parse server response. Please try again later."
+        );
       }
-      
+
       if (!response.ok) {
         console.error("Failed to verify payment:", data);
-        throw new Error(data.error || data.details || 'Payment verification failed');
+        throw new Error(
+          data.error || data.details || "Payment verification failed"
+        );
       }
-      
+
       return data;
     } catch (error) {
-      console.error('Error verifying Razorpay payment:', error);
+      console.error("Error verifying Razorpay payment:", error);
       throw error;
     }
   };
@@ -201,50 +220,57 @@ const useRazorpayPayment = () => {
     time,
     onSuccess,
     onError,
-    onCancel
+    onCancel,
   }) => {
-    console.log("processPayment called with appointment:", JSON.stringify(appointment));
+    console.log(
+      "processPayment called with appointment:",
+      JSON.stringify(appointment)
+    );
     console.log("Doctor details:", JSON.stringify(doctorDetails));
     console.log("Service details:", JSON.stringify(serviceDetails));
-    
+
     try {
       setIsProcessing(true);
-      
+
       // Check if Razorpay script is loaded
       if (!isScriptLoaded) {
         console.error("Razorpay script not loaded");
-        throw new Error("Razorpay script not loaded. Please refresh the page and try again.");
+        throw new Error(
+          "Razorpay script not loaded. Please refresh the page and try again."
+        );
       }
-      
+
       // Check if Razorpay is available in window
       if (!window.Razorpay) {
         console.error("Razorpay not available in window object");
-        throw new Error("Razorpay not available. Please refresh the page and try again.");
+        throw new Error(
+          "Razorpay not available. Please refresh the page and try again."
+        );
       }
-      
+
       // Get token from localStorage
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem("token");
       if (!token) {
         console.error("No authentication token found in localStorage");
         throw new Error("Authentication token not found. Please log in again.");
       }
-      
+
       // Validate required data
       if (!appointment || !appointment._id) {
         console.error("Invalid appointment data:", appointment);
         throw new Error("Invalid appointment data. Please try again.");
       }
-      
+
       if (!doctorDetails || !doctorDetails.name) {
         console.error("Invalid doctor details:", doctorDetails);
         throw new Error("Invalid doctor details. Please try again.");
       }
-      
+
       if (!serviceDetails || !serviceDetails.price || !serviceDetails.name) {
         console.error("Invalid service details:", serviceDetails);
         throw new Error("Invalid service details. Please try again.");
       }
-      
+
       // Create order data
       const orderData = {
         amount: serviceDetails.price,
@@ -254,58 +280,84 @@ const useRazorpayPayment = () => {
           doctorName: doctorDetails.name,
           service: serviceDetails.name,
           date,
-          time
-        }
+          time,
+        },
       };
-      
-      console.log("Creating Razorpay order with data:", JSON.stringify(orderData));
-      
+
+      console.log(
+        "Creating Razorpay order with data:",
+        JSON.stringify(orderData)
+      );
+
       // Create order
       let orderResponse;
       try {
         orderResponse = await createOrder(orderData, token);
-        console.log("Order created successfully:", JSON.stringify(orderResponse));
+        console.log(
+          "Order created successfully:",
+          JSON.stringify(orderResponse)
+        );
       } catch (orderError) {
         console.error("Failed to create order:", orderError);
-        throw new Error(orderError.message || "Failed to create payment order. Please try again later.");
+        throw new Error(
+          orderError.message ||
+            "Failed to create payment order. Please try again later."
+        );
       }
-      
+
       if (!orderResponse.order || !orderResponse.order.id) {
         console.error("Invalid order response:", orderResponse);
-        throw new Error("Failed to create payment order. Invalid response from server.");
+        throw new Error(
+          "Failed to create payment order. Invalid response from server."
+        );
       }
-      
+
       // Configure Razorpay options
       const options = {
         key: orderResponse.key_id,
         amount: orderResponse.order.amount,
         currency: orderResponse.order.currency,
-        name: "Dr. Imran's Healthcare",
+        name: "Sehat",
         description: `Payment for ${serviceDetails.name} with Dr. ${doctorDetails.name}`,
         order_id: orderResponse.order.id,
-        handler: async function(response) {
-          console.log("Payment successful, handler called with response:", JSON.stringify(response));
-          
+        handler: async function (response) {
+          console.log(
+            "Payment successful, handler called with response:",
+            JSON.stringify(response)
+          );
+
           try {
             // Verify payment
             const verificationData = {
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_order_id: response.razorpay_order_id,
               razorpay_signature: response.razorpay_signature,
-              appointmentId: appointment._id
+              appointmentId: appointment._id,
             };
-            
-            console.log("Verifying payment with data:", JSON.stringify(verificationData));
-            
+
+            console.log(
+              "Verifying payment with data:",
+              JSON.stringify(verificationData)
+            );
+
             let verificationResponse;
             try {
-              verificationResponse = await verifyPayment(verificationData, token);
-              console.log("Payment verified successfully:", JSON.stringify(verificationResponse));
+              verificationResponse = await verifyPayment(
+                verificationData,
+                token
+              );
+              console.log(
+                "Payment verified successfully:",
+                JSON.stringify(verificationResponse)
+              );
             } catch (verifyError) {
               console.error("Error verifying payment:", verifyError);
-              throw new Error(verifyError.message || "Payment verification failed. Please contact support.");
+              throw new Error(
+                verifyError.message ||
+                  "Payment verification failed. Please contact support."
+              );
             }
-            
+
             // Call success callback
             if (onSuccess) {
               onSuccess(verificationResponse);
@@ -322,10 +374,10 @@ const useRazorpayPayment = () => {
         prefill: {
           name: appointment.patient_name || "Patient",
           email: appointment.patient_email || "",
-          contact: appointment.patient_phone || ""
+          contact: appointment.patient_phone || "",
         },
         theme: {
-          color: "#4f46e5"
+          color: "#4f46e5",
         },
         // Add specific payment method configuration
         config: {
@@ -334,7 +386,12 @@ const useRazorpayPayment = () => {
             preferences: {
               show_default_blocks: true, // Show all payment blocks by default
               // Set the order of payment methods
-              sequence: ["block.upi", "block.wallet", "block.netbanking", "block.card"],
+              sequence: [
+                "block.upi",
+                "block.wallet",
+                "block.netbanking",
+                "block.card",
+              ],
               // Make blocks expanded by default
               blocks: {
                 upi: {
@@ -345,64 +402,74 @@ const useRazorpayPayment = () => {
                       // Use intent flow for better UPI app selection
                       flow: "intent",
                       // Explicitly list popular UPI apps
-                      apps: ["google_pay", "phonepe", "paytm", "bhim", "amazon_pay"]
-                    }
-                  ]
+                      apps: [
+                        "google_pay",
+                        "phonepe",
+                        "paytm",
+                        "bhim",
+                        "amazon_pay",
+                      ],
+                    },
+                  ],
                 },
                 banks: {
                   name: "Pay via Net Banking",
                   instruments: [
                     {
-                      method: "netbanking"
-                    }
-                  ]
+                      method: "netbanking",
+                    },
+                  ],
                 },
                 wallets: {
                   name: "Pay via Wallet",
                   instruments: [
                     {
-                      method: "wallet"
-                    }
-                  ]
+                      method: "wallet",
+                    },
+                  ],
                 },
                 cards: {
                   name: "Pay via Card",
                   instruments: [
                     {
-                      method: "card"
-                    }
-                  ]
-                }
-              }
-            }
-          }
+                      method: "card",
+                    },
+                  ],
+                },
+              },
+            },
+          },
         },
         modal: {
-          ondismiss: function() {
+          ondismiss: function () {
             console.log("Payment modal dismissed by user");
             if (onCancel) {
               onCancel();
             }
             setIsProcessing(false);
-          }
-        }
+          },
+        },
       };
-      
-      console.log("Initializing Razorpay with options:", JSON.stringify(options));
-      
+
+      console.log(
+        "Initializing Razorpay with options:",
+        JSON.stringify(options)
+      );
+
       // Initialize Razorpay
       try {
         const razorpay = new window.Razorpay(options);
         console.log("Razorpay instance created");
-        
+
         // Open Razorpay checkout
         console.log("Opening Razorpay checkout...");
         razorpay.open();
       } catch (razorpayError) {
         console.error("Error initializing Razorpay:", razorpayError);
-        throw new Error("Failed to initialize payment gateway. Please try again later.");
+        throw new Error(
+          "Failed to initialize payment gateway. Please try again later."
+        );
       }
-      
     } catch (error) {
       console.error("Error processing payment:", error);
       if (onError) {
@@ -415,8 +482,8 @@ const useRazorpayPayment = () => {
   return {
     isScriptLoaded,
     isProcessing,
-    processPayment
+    processPayment,
   };
 };
 
-export default useRazorpayPayment; 
+export default useRazorpayPayment;
