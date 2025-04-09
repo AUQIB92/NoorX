@@ -9,6 +9,11 @@ import {
   FaSearch,
   FaFilter,
   FaUserMd,
+  FaTimes,
+  FaFlask,
+  FaUserClock,
+  FaEnvelope,
+  FaPhone,
 } from "react-icons/fa";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -52,37 +57,139 @@ export default function LabDoctorsManagement() {
       const token = localStorage.getItem("token");
       const labId = localStorage.getItem("labId");
 
-      if (!token || !labId) {
-        toast.error(
-          "Authentication information not found. Please log in again."
-        );
+      // Add more detailed validation
+      if (!token) {
+        console.error("No authentication token found");
+        toast.error("Please log in to access this page");
         router.push("/auth/login");
         return;
       }
 
+      if (!labId) {
+        console.error("No lab ID found");
+        toast.error("Lab information not found. Please log in again");
+        router.push("/auth/login");
+        return;
+      }
+
+      console.log("Fetching doctors for lab:", labId); // Debug log
+
       const response = await fetch(`/api/labs/${labId}/doctors`, {
         headers: {
           Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
         },
       });
 
-      const data = await response.json();
+      // Log the response status
+      console.log("API Response status:", response.status);
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to fetch doctors");
+        const errorData = await response.json();
+        console.error("API Error:", errorData);
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
       }
 
-      setDoctors(data.doctors || []);
+      const data = await response.json();
+      console.log("Doctors data received:", data); // Debug log
+
+      if (!Array.isArray(data.doctors)) {
+        console.error("Invalid data format received:", data);
+        throw new Error("Invalid data format received from server");
+      }
+
+      setDoctors(data.doctors);
     } catch (error) {
-      console.error("Error fetching doctors:", error);
-      toast.error(error.message || "Failed to fetch doctors");
+      console.error("Error in fetchDoctors:", error);
+      toast.error(error.message || "Failed to fetch doctors. Please try refreshing the page");
+      setDoctors([]); // Set empty array on error
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchDoctors();
+    const validateAndFetchData = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        if (!token) {
+          console.error("No token found");
+          toast.error("Please log in to access this page");
+          router.push("/auth/login");
+          return;
+        }
+
+        // Parse token to get user info
+        const tokenParts = token.split('.');
+        if (tokenParts.length !== 3) {
+          console.error("Invalid token format");
+          toast.error("Invalid authentication. Please log in again");
+          router.push("/auth/login");
+          return;
+        }
+
+        try {
+          const payload = JSON.parse(atob(tokenParts[1]));
+          if (payload.role !== 'labAdmin') {
+            console.error("User is not a lab admin");
+            toast.error("You don't have permission to access this page");
+            router.push("/auth/login");
+            return;
+          }
+
+          // First fetch user data to get lab ID if not already in localStorage
+          if (!localStorage.getItem("labId")) {
+            const userResponse = await fetch(`/api/users/${payload.id}`, {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            });
+
+            if (!userResponse.ok) {
+              throw new Error("Failed to fetch user data");
+            }
+
+            const userData = await userResponse.json();
+
+            // Find the lab associated with this user
+            const labsResponse = await fetch(
+              `/api/labs?email=${userData.user.email}`,
+              {
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                },
+              }
+            );
+
+            if (!labsResponse.ok) {
+              throw new Error("Failed to fetch lab data");
+            }
+
+            const labsData = await labsResponse.json();
+
+            if (!labsData.labs || labsData.labs.length === 0) {
+              throw new Error("No lab found for this user");
+            }
+
+            localStorage.setItem("labId", labsData.labs[0]._id);
+          }
+
+          // Now fetch the doctors
+          await fetchDoctors();
+        } catch (e) {
+          console.error("Token parsing error:", e);
+          localStorage.removeItem("token");
+          localStorage.removeItem("labId");
+          toast.error("Session expired. Please log in again");
+          router.push("/auth/login");
+        }
+      } catch (error) {
+        console.error("Validation error:", error);
+        toast.error(error.message || "An error occurred. Please try again");
+      }
+    };
+
+    validateAndFetchData();
   }, []);
 
   // Handle doctor form input change
@@ -419,113 +526,156 @@ export default function LabDoctorsManagement() {
       {/* Add Doctor Modal */}
       {showAddDoctorModal && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
-          <div className="relative mx-auto p-5 w-full max-w-md bg-white rounded-md shadow-lg">
-            <h2 className="text-xl font-semibold mb-4">Add New Doctor</h2>
-            <form onSubmit={handleAddDoctor}>
-              <div className="space-y-4">
+          <div className="relative mx-auto p-8 w-full max-w-2xl bg-white rounded-xl shadow-lg">
+            <button
+              onClick={() => setShowAddDoctorModal(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-500 focus:outline-none"
+            >
+              <span className="sr-only">Close</span>
+              <FaTimes className="h-5 w-5" />
+            </button>
+
+            <div className="text-center mb-6">
+              <div className="mx-auto h-16 w-16 bg-teal-100 rounded-full flex items-center justify-center">
+                <FaUserMd className="h-8 w-8 text-teal-600" />
+              </div>
+              <h2 className="mt-4 text-2xl font-semibold text-gray-900">Add New Doctor</h2>
+              <p className="mt-2 text-sm text-gray-500">Please fill in the doctor's information below</p>
+            </div>
+
+            <form onSubmit={handleAddDoctor} className="mt-8">
+              <div className="grid grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Name
-                  </label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={doctorFormData.name}
-                    onChange={handleDoctorInputChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    required
-                  />
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaUserMd className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      type="text"
+                      name="name"
+                      value={doctorFormData.name}
+                      onChange={handleDoctorInputChange}
+                      className="pl-10 w-full h-12 rounded-md border border-gray-300 bg-gray-50 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                      placeholder="Dr. John Doe"
+                      required
+                    />
+                  </div>
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Specialization
-                  </label>
-                  <input
-                    type="text"
-                    name="specialization"
-                    value={doctorFormData.specialization}
-                    onChange={handleDoctorInputChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    required
-                  />
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaFlask className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      type="text"
+                      name="specialization"
+                      value={doctorFormData.specialization}
+                      onChange={handleDoctorInputChange}
+                      className="pl-10 w-full h-12 rounded-md border border-gray-300 bg-gray-50 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                      placeholder="Cardiology"
+                      required
+                    />
+                  </div>
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Experience (years)
-                  </label>
-                  <input
-                    type="number"
-                    name="experience"
-                    value={doctorFormData.experience}
-                    onChange={handleDoctorInputChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    required
-                  />
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaUserClock className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      type="number"
+                      name="experience"
+                      value={doctorFormData.experience}
+                      onChange={handleDoctorInputChange}
+                      className="pl-10 w-full h-12 rounded-md border border-gray-300 bg-gray-50 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                      placeholder="Years of experience"
+                      required
+                    />
+                  </div>
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Qualification
-                  </label>
-                  <input
-                    type="text"
-                    name="qualification"
-                    value={doctorFormData.qualification}
-                    onChange={handleDoctorInputChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    required
-                  />
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaUserMd className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      type="text"
+                      name="qualification"
+                      value={doctorFormData.qualification}
+                      onChange={handleDoctorInputChange}
+                      className="pl-10 w-full h-12 rounded-md border border-gray-300 bg-gray-50 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                      placeholder="MBBS, MD"
+                      required
+                    />
+                  </div>
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={doctorFormData.email}
-                    onChange={handleDoctorInputChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    required
-                  />
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaEnvelope className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      type="email"
+                      name="email"
+                      value={doctorFormData.email}
+                      onChange={handleDoctorInputChange}
+                      className="pl-10 w-full h-12 rounded-md border border-gray-300 bg-gray-50 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                      placeholder="doctor@example.com"
+                      required
+                    />
+                  </div>
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Phone
-                  </label>
-                  <input
-                    type="tel"
-                    name="phone"
-                    value={doctorFormData.phone}
-                    onChange={handleDoctorInputChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    required
-                  />
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaPhone className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      type="tel"
+                      name="phone"
+                      value={doctorFormData.phone}
+                      onChange={handleDoctorInputChange}
+                      className="pl-10 w-full h-12 rounded-md border border-gray-300 bg-gray-50 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                      placeholder="+91 XXXXX XXXXX"
+                      required
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Address
-                  </label>
-                  <textarea
-                    name="address"
-                    value={doctorFormData.address}
-                    onChange={handleDoctorInputChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    rows="3"
-                    required
-                  />
+
+                <div className="col-span-2 mt-4">
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaUserMd className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <textarea
+                      name="address"
+                      value={doctorFormData.address}
+                      onChange={handleDoctorInputChange}
+                      className="pl-10 w-full rounded-md border border-gray-300 bg-gray-50 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                      placeholder="Full Address"
+                      rows="3"
+                      required
+                    ></textarea>
+                  </div>
                 </div>
               </div>
-              <div className="mt-6 flex justify-end space-x-3">
+
+              <div className="mt-8 flex justify-end space-x-4">
                 <button
                   type="button"
                   onClick={() => setShowAddDoctorModal(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                  className="px-6 py-3 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  className="px-6 py-3 text-sm font-medium text-white bg-teal-600 border border-transparent rounded-md hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
                 >
                   Add Doctor
                 </button>

@@ -33,6 +33,11 @@ const labSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    labAdmin: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
     createdAt: {
       type: Date,
       default: Date.now,
@@ -50,7 +55,7 @@ const labSchema = new mongoose.Schema(
 // Create index for location field
 labSchema.index({ location: "2dsphere" });
 
-// Prevent duplicate model initialization
+// Ensure proper model registration
 const Lab = mongoose.models.Lab || mongoose.model("Lab", labSchema);
 
 export default Lab;

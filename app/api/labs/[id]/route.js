@@ -8,12 +8,26 @@ async function getLab(req, { params }) {
   try {
     await connectToDatabase();
 
-    const lab = await Lab.findById(params.id).populate(
-      "labAdmin",
-      "name email mobile"
-    );
+    // Try to get lab with population and strict options disabled
+    let lab = await Lab.findById(params.id)
+      .populate({
+        path: 'labAdmin',
+        model: 'User',
+        select: 'name email mobile',
+        strictPopulate: false
+      })
+      .exec();
+
     if (!lab) {
       return NextResponse.json({ error: "Lab not found" }, { status: 404 });
+    }
+
+    // If population failed, manually populate
+    if (!lab.labAdmin) {
+      const { default: User } = await import("../../../../models/User");
+      const admin = await User.findById(lab.labAdmin).select('name email mobile');
+      lab = lab.toObject();
+      lab.labAdmin = admin;
     }
 
     return NextResponse.json({ lab });

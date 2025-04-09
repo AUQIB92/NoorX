@@ -11,7 +11,6 @@ const userSchema = new mongoose.Schema({
   },
   mobile: {
     type: String,
-    sparse: true,
   },
   email: {
     type: String,
@@ -100,20 +99,7 @@ userSchema.index(
   }
 );
 
-// Remove the problematic index on mobile
-// userSchema.index(
-//   { mobile: 1, verified: 1 },
-//   {
-//     unique: true,
-//     partialFilterExpression: {
-//       mobile: { $exists: true, $ne: null },
-//       verified: true,
-//     },
-//     sparse: true,
-//   }
-// );
-
-// Add a new index for mobile that only applies to verified users with non-null mobile
+// Add a single index for mobile that only applies to non-null mobile numbers
 userSchema.index(
   { mobile: 1 },
   {

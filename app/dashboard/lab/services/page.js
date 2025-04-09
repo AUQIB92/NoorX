@@ -9,6 +9,8 @@ import {
   FaSearch,
   FaFilter,
   FaFlask,
+  FaTimes,
+  FaClock,
 } from "react-icons/fa";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -37,6 +39,7 @@ export default function LabServicesManagement() {
     description: "",
     price: "",
     duration: "",
+    category: "",
     isAvailable: true,
   });
   const [searchTerm, setSearchTerm] = useState("");
@@ -120,6 +123,7 @@ export default function LabServicesManagement() {
         description: "",
         price: "",
         duration: "",
+        category: "",
         isAvailable: true,
       });
       fetchServices();
@@ -202,6 +206,7 @@ export default function LabServicesManagement() {
       description: service.description,
       price: service.price,
       duration: service.duration,
+      category: service.category,
       isAvailable: service.isAvailable,
     });
     setShowEditServiceModal(true);
@@ -396,74 +401,122 @@ export default function LabServicesManagement() {
       {/* Add Service Modal */}
       {showAddServiceModal && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
-          <div className="relative mx-auto p-5 w-full max-w-md bg-white rounded-md shadow-lg">
-            <h2 className="text-xl font-semibold mb-4">Add New Service</h2>
-            <form onSubmit={handleAddService}>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Name
-                  </label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={serviceFormData.name}
-                    onChange={handleServiceInputChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    required
-                  />
+          <div className="relative mx-auto p-8 w-full max-w-2xl bg-white rounded-xl shadow-lg">
+            <button
+              onClick={() => setShowAddServiceModal(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-500 focus:outline-none"
+            >
+              <span className="sr-only">Close</span>
+              <FaTimes className="h-5 w-5" />
+            </button>
+
+            <div className="text-center mb-6">
+              <div className="mx-auto h-16 w-16 bg-teal-100 rounded-full flex items-center justify-center">
+                <FaFlask className="h-8 w-8 text-teal-600" />
+              </div>
+              <h2 className="mt-4 text-2xl font-semibold text-gray-900">Add New Service</h2>
+              <p className="mt-2 text-sm text-gray-500">Please fill in the service details below</p>
+            </div>
+
+            <form onSubmit={handleAddService} className="mt-8">
+              <div className="grid grid-cols-2 gap-6">
+                <div className="col-span-2">
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaFlask className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      type="text"
+                      name="name"
+                      value={serviceFormData.name}
+                      onChange={handleServiceInputChange}
+                      className="pl-10 w-full h-12 rounded-md border border-gray-300 bg-gray-50 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                      placeholder="Service Name"
+                      required
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Description
-                  </label>
+
+                <div className="col-span-2">
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaFilter className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <select
+                      name="category"
+                      value={serviceFormData.category}
+                      onChange={handleServiceInputChange}
+                      className="pl-10 w-full h-12 rounded-md border border-gray-300 bg-gray-50 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                      required
+                    >
+                      <option value="">Select Category</option>
+                      <option value="Blood Test">Blood Test</option>
+                      <option value="Urine Test">Urine Test</option>
+                      <option value="Imaging">Imaging</option>
+                      <option value="General">General</option>
+                      <option value="Specialized">Specialized</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="col-span-2">
                   <textarea
                     name="description"
                     value={serviceFormData.description}
                     onChange={handleServiceInputChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    className="w-full rounded-md border border-gray-300 bg-gray-50 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                    placeholder="Service Description"
                     rows="3"
                     required
-                  />
+                  ></textarea>
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Price (₹)
-                  </label>
-                  <input
-                    type="number"
-                    name="price"
-                    value={serviceFormData.price}
-                    onChange={handleServiceInputChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    required
-                  />
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <span className="text-gray-400">₹</span>
+                    </div>
+                    <input
+                      type="number"
+                      name="price"
+                      value={serviceFormData.price}
+                      onChange={handleServiceInputChange}
+                      className="pl-8 w-full h-12 rounded-md border border-gray-300 bg-gray-50 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                      placeholder="Price"
+                      required
+                    />
+                  </div>
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Duration (minutes)
-                  </label>
-                  <input
-                    type="number"
-                    name="duration"
-                    value={serviceFormData.duration}
-                    onChange={handleServiceInputChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    required
-                  />
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaClock className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      type="number"
+                      name="duration"
+                      value={serviceFormData.duration}
+                      onChange={handleServiceInputChange}
+                      className="pl-10 w-full h-12 rounded-md border border-gray-300 bg-gray-50 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                      placeholder="Duration (minutes)"
+                      required
+                    />
+                  </div>
                 </div>
               </div>
-              <div className="mt-6 flex justify-end space-x-3">
+
+              <div className="mt-8 flex justify-end space-x-4">
                 <button
                   type="button"
                   onClick={() => setShowAddServiceModal(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                  className="px-6 py-3 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  className="px-6 py-3 text-sm font-medium text-white bg-teal-600 border border-transparent rounded-md hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
                 >
                   Add Service
                 </button>

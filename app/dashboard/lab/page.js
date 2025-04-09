@@ -17,6 +17,7 @@ import {
   FaChartLine,
   FaCalendarCheck,
   FaUserClock,
+  FaTimes,
 } from "react-icons/fa";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -69,69 +70,109 @@ export default function LabDashboard() {
     try {
       setLoading(true);
       const token = localStorage.getItem("token");
+      let labId; // Declare labId in the outer scope
 
       if (!token) {
-        toast.error("Authentication token not found. Please log in again.");
+        console.error("No authentication token found");
+        toast.error("Please log in to access this page");
         router.push("/auth/login");
         return;
       }
 
-      // Get user info from token
-      const tokenParts = token.split(".");
-      const payload = JSON.parse(atob(tokenParts[1]));
-      const userId = payload.id;
-
-      // First fetch the user to get their lab ID
-      const userResponse = await fetch(`/api/users/${userId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!userResponse.ok) {
-        throw new Error("Failed to fetch user data");
-      }
-
-      const userData = await userResponse.json();
-
-      // Find the lab associated with this user
-      const labsResponse = await fetch(
-        `/api/labs?email=${userData.user.email}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+      // Validate token format
+      try {
+        const tokenParts = token.split('.');
+        if (tokenParts.length !== 3) {
+          throw new Error("Invalid token format");
         }
-      );
+        
+        const payload = JSON.parse(atob(tokenParts[1]));
+        if (!payload.id || !payload.role) {
+          throw new Error("Invalid token payload");
+        }
 
-      if (!labsResponse.ok) {
-        throw new Error("Failed to fetch lab data");
+        if (payload.role !== 'labAdmin') {
+          throw new Error("Unauthorized access - Not a lab admin");
+        }
+
+        // First fetch the user to get their lab ID
+        const userResponse = await fetch(`/api/users/${payload.id}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include'
+        });
+
+        if (!userResponse.ok) {
+          if (userResponse.status === 401) {
+            // Token expired or invalid
+            localStorage.removeItem("token");
+            localStorage.removeItem("labId");
+            throw new Error("Session expired. Please log in again");
+          }
+          throw new Error("Failed to fetch user data");
+        }
+
+        const userData = await userResponse.json();
+
+        // Find the lab associated with this user
+        const labsResponse = await fetch(
+          `/api/labs?email=${encodeURIComponent(userData.user.email)}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            credentials: 'include'
+          }
+        );
+
+        if (!labsResponse.ok) {
+          throw new Error("Failed to fetch lab data");
+        }
+
+        const labsData = await labsResponse.json();
+
+        if (!labsData.labs || labsData.labs.length === 0) {
+          throw new Error("No lab found for this user");
+        }
+
+        labId = labsData.labs[0]._id; // Assign to the outer scope variable
+        localStorage.setItem("labId", labId);
+
+        // Fetch lab details
+        const labResponse = await fetch(`/api/labs/${labId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include'
+        });
+
+        if (!labResponse.ok) {
+          throw new Error("Failed to fetch lab details");
+        }
+
+        const labData = await labResponse.json();
+        setLabData(labData.lab);
+
+      } catch (tokenError) {
+        console.error("Token validation error:", tokenError);
+        localStorage.removeItem("token");
+        localStorage.removeItem("labId");
+        toast.error(tokenError.message || "Authentication failed. Please log in again");
+        router.push("/auth/login");
+        return;
       }
 
-      const labsData = await labsResponse.json();
-
-      if (!labsData.labs || labsData.labs.length === 0) {
-        throw new Error("No lab found for this user");
+      // Get labId from localStorage as fallback
+      if (!labId) {
+        labId = localStorage.getItem("labId");
+        if (!labId) {
+          throw new Error("Lab ID not found");
+        }
       }
-
-      const labId = labsData.labs[0]._id;
-
-      // Store labId for future use
-      localStorage.setItem("labId", labId);
-
-      // Fetch lab details
-      const labResponse = await fetch(`/api/labs/${labId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      const labData = await labResponse.json();
-
-      if (!labResponse.ok) {
-        throw new Error(labData.error || "Failed to fetch lab details");
-      }
-
-      setLabData(labData.lab);
 
       // Fetch doctors
       const doctorsResponse = await fetch(`/api/labs/${labId}/doctors`, {
@@ -581,69 +622,54 @@ export default function LabDashboard() {
               <>
                 {/* Doctors Tab */}
                 {activeTab === "doctors" && (
-                  <div>
-                    <div className="flex justify-between items-center mb-6">
-                      <h2 className="text-xl font-semibold text-gray-800">
-                        Manage Doctors
-                      </h2>
-                      <button
-                        onClick={() => setShowAddDoctorModal(true)}
-                        className="bg-blue-600 text-white px-4 py-2 rounded-md flex items-center hover:bg-blue-700"
-                      >
-                        <FaPlus className="mr-2" /> Add Doctor
-                      </button>
-                    </div>
-
+                  <div className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      <div
+                        onClick={() => setShowAddDoctorModal(true)}
+                        className="bg-white p-6 rounded-lg shadow-md border border-gray-200 flex flex-col items-center justify-center space-y-4 cursor-pointer hover:shadow-lg transition-shadow duration-200 min-h-[200px]"
+                      >
+                        <div className="h-16 w-16 bg-teal-100 rounded-full flex items-center justify-center">
+                          <FaPlus className="h-8 w-8 text-teal-600" />
+                        </div>
+                        <h3 className="text-xl font-semibold text-gray-800">Add New Doctor</h3>
+                        <p className="text-gray-500 text-center">Add a new doctor to your lab</p>
+                      </div>
+
                       {doctors.map((doctor) => (
                         <div
                           key={doctor._id}
-                          className="bg-white rounded-lg shadow-md p-6 border border-gray-200"
+                          className="flex items-center justify-between p-4 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors duration-150"
                         >
-                          <div className="flex items-center mb-4">
-                            <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center">
-                              <FaUserMd className="h-6 w-6 text-blue-600" />
+                          <div className="flex items-center space-x-4">
+                            <div className="h-12 w-12 bg-teal-100 rounded-full flex items-center justify-center">
+                              <FaUserMd className="h-6 w-6 text-teal-600" />
                             </div>
-                            <div className="ml-4">
+                            <div>
                               <h3 className="text-lg font-semibold text-gray-800">
                                 {doctor.name}
                               </h3>
-                              <p className="text-sm text-gray-500">
-                                {doctor.specialization}
-                              </p>
+                              <div className="flex items-center space-x-4 text-sm text-gray-600">
+                                <span>{doctor.specialization}</span>
+                                <span>•</span>
+                                <span>{doctor.experience} years exp.</span>
+                              </div>
                             </div>
                           </div>
-                          <div className="space-y-2">
-                            <p className="text-sm text-gray-600">
-                              <span className="font-medium">Experience:</span>{" "}
-                              {doctor.experience} years
-                            </p>
-                            <p className="text-sm text-gray-600">
-                              <span className="font-medium">
-                                Qualification:
-                              </span>{" "}
-                              {doctor.qualification}
-                            </p>
-                            <p className="text-sm text-gray-600">
-                              <span className="font-medium">Contact:</span>{" "}
-                              {doctor.phone}
-                            </p>
-                          </div>
-                          <div className="mt-4 flex justify-end space-x-2">
+                          <div className="flex items-center space-x-4">
                             <button
                               onClick={() => openEditDoctorModal(doctor)}
-                              className="text-blue-600 hover:text-blue-800"
+                              className="text-teal-600 hover:text-teal-800 focus:outline-none"
                             >
-                              <FaEdit />
+                              <FaEdit className="h-5 w-5" />
                             </button>
                             <button
                               onClick={() => {
                                 setSelectedDoctor(doctor);
                                 setShowDeleteDoctorModal(true);
                               }}
-                              className="text-red-600 hover:text-red-800"
+                              className="text-red-600 hover:text-red-800 focus:outline-none"
                             >
-                              <FaTrash />
+                              <FaTrash className="h-5 w-5" />
                             </button>
                           </div>
                         </div>
@@ -654,61 +680,54 @@ export default function LabDashboard() {
 
                 {/* Services Tab */}
                 {activeTab === "services" && (
-                  <div>
-                    <div className="flex justify-between items-center mb-6">
-                      <h2 className="text-xl font-semibold text-gray-800">
-                        Manage Services
-                      </h2>
-                      <button
-                        onClick={() => setShowAddServiceModal(true)}
-                        className="bg-blue-600 text-white px-4 py-2 rounded-md flex items-center hover:bg-blue-700"
-                      >
-                        <FaPlus className="mr-2" /> Add Service
-                      </button>
-                    </div>
-
+                  <div className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      <div
+                        onClick={() => setShowAddServiceModal(true)}
+                        className="bg-white p-6 rounded-lg shadow-md border border-gray-200 flex flex-col items-center justify-center space-y-4 cursor-pointer hover:shadow-lg transition-shadow duration-200 min-h-[200px]"
+                      >
+                        <div className="h-16 w-16 bg-teal-100 rounded-full flex items-center justify-center">
+                          <FaPlus className="h-8 w-8 text-teal-600" />
+                        </div>
+                        <h3 className="text-xl font-semibold text-gray-800">Add New Service</h3>
+                        <p className="text-gray-500 text-center">Add a new service to your lab</p>
+                      </div>
+
                       {services.map((service) => (
                         <div
                           key={service._id}
-                          className="bg-white rounded-lg shadow-md p-6 border border-gray-200"
+                          className="flex items-center justify-between p-4 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors duration-150"
                         >
-                          <div className="flex items-center mb-4">
-                            <div className="h-12 w-12 bg-green-100 rounded-full flex items-center justify-center">
-                              <FaFlask className="h-6 w-6 text-green-600" />
+                          <div className="flex items-center space-x-4">
+                            <div className="h-12 w-12 bg-teal-100 rounded-full flex items-center justify-center">
+                              <FaFlask className="h-6 w-6 text-teal-600" />
                             </div>
-                            <div className="ml-4">
+                            <div>
                               <h3 className="text-lg font-semibold text-gray-800">
                                 {service.name}
                               </h3>
-                              <p className="text-sm text-gray-500">
-                                Duration: {service.duration} mins
-                              </p>
+                              <div className="flex items-center space-x-4 text-sm text-gray-600">
+                                <span>{service.duration} mins</span>
+                                <span>•</span>
+                                <span>₹{service.price}</span>
+                              </div>
                             </div>
                           </div>
-                          <div className="space-y-2">
-                            <p className="text-sm text-gray-600">
-                              {service.description}
-                            </p>
-                            <p className="text-sm font-medium text-gray-800">
-                              ₹{service.price}
-                            </p>
-                          </div>
-                          <div className="mt-4 flex justify-end space-x-2">
+                          <div className="flex items-center space-x-4">
                             <button
                               onClick={() => openEditServiceModal(service)}
-                              className="text-blue-600 hover:text-blue-800"
+                              className="text-teal-600 hover:text-teal-800 focus:outline-none"
                             >
-                              <FaEdit />
+                              <FaEdit className="h-5 w-5" />
                             </button>
                             <button
                               onClick={() => {
                                 setSelectedService(service);
                                 setShowDeleteServiceModal(true);
                               }}
-                              className="text-red-600 hover:text-red-800"
+                              className="text-red-600 hover:text-red-800 focus:outline-none"
                             >
-                              <FaTrash />
+                              <FaTrash className="h-5 w-5" />
                             </button>
                           </div>
                         </div>
@@ -771,100 +790,139 @@ export default function LabDashboard() {
       {/* Add Doctor Modal */}
       {showAddDoctorModal && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
-          <div className="relative mx-auto p-5 w-full max-w-md bg-white rounded-md shadow-lg">
-            <h2 className="text-xl font-semibold mb-4">Add New Doctor</h2>
-            <form onSubmit={handleAddDoctor}>
-              <div className="space-y-4">
+          <div className="relative mx-auto p-8 w-full max-w-2xl bg-white rounded-xl shadow-lg">
+            <button
+              onClick={() => setShowAddDoctorModal(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-500 focus:outline-none"
+            >
+              <span className="sr-only">Close</span>
+              <FaTimes className="h-5 w-5" />
+            </button>
+
+            <div className="text-center mb-6">
+              <div className="mx-auto h-16 w-16 bg-teal-100 rounded-full flex items-center justify-center">
+                <FaUserMd className="h-8 w-8 text-teal-600" />
+              </div>
+              <h2 className="mt-4 text-2xl font-semibold text-gray-900">Add New Doctor</h2>
+              <p className="mt-2 text-sm text-gray-500">Please fill in the doctor's information below</p>
+            </div>
+
+            <form onSubmit={handleAddDoctor} className="mt-8">
+              <div className="grid grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Name
-                  </label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={doctorFormData.name}
-                    onChange={handleDoctorInputChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    required
-                  />
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaUserMd className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      type="text"
+                      name="name"
+                      value={doctorFormData.name}
+                      onChange={handleDoctorInputChange}
+                      className="pl-10 w-full h-12 rounded-md border border-gray-300 bg-gray-50 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                      placeholder="Dr. John Doe"
+                      required
+                    />
+                  </div>
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Specialization
-                  </label>
-                  <input
-                    type="text"
-                    name="specialization"
-                    value={doctorFormData.specialization}
-                    onChange={handleDoctorInputChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    required
-                  />
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaFlask className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      type="text"
+                      name="specialization"
+                      value={doctorFormData.specialization}
+                      onChange={handleDoctorInputChange}
+                      className="pl-10 w-full h-12 rounded-md border border-gray-300 bg-gray-50 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                      placeholder="Cardiology"
+                      required
+                    />
+                  </div>
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Experience (years)
-                  </label>
-                  <input
-                    type="number"
-                    name="experience"
-                    value={doctorFormData.experience}
-                    onChange={handleDoctorInputChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    required
-                  />
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaUserClock className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      type="number"
+                      name="experience"
+                      value={doctorFormData.experience}
+                      onChange={handleDoctorInputChange}
+                      className="pl-10 w-full h-12 rounded-md border border-gray-300 bg-gray-50 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                      placeholder="Years of experience"
+                      required
+                    />
+                  </div>
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Qualification
-                  </label>
-                  <input
-                    type="text"
-                    name="qualification"
-                    value={doctorFormData.qualification}
-                    onChange={handleDoctorInputChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    required
-                  />
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaUserMd className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      type="text"
+                      name="qualification"
+                      value={doctorFormData.qualification}
+                      onChange={handleDoctorInputChange}
+                      className="pl-10 w-full h-12 rounded-md border border-gray-300 bg-gray-50 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                      placeholder="MBBS, MD"
+                      required
+                    />
+                  </div>
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={doctorFormData.email}
-                    onChange={handleDoctorInputChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    required
-                  />
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaEnvelope className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      type="email"
+                      name="email"
+                      value={doctorFormData.email}
+                      onChange={handleDoctorInputChange}
+                      className="pl-10 w-full h-12 rounded-md border border-gray-300 bg-gray-50 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                      placeholder="doctor@example.com"
+                      required
+                    />
+                  </div>
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Phone
-                  </label>
-                  <input
-                    type="tel"
-                    name="phone"
-                    value={doctorFormData.phone}
-                    onChange={handleDoctorInputChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    required
-                  />
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaPhone className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      type="tel"
+                      name="phone"
+                      value={doctorFormData.phone}
+                      onChange={handleDoctorInputChange}
+                      className="pl-10 w-full h-12 rounded-md border border-gray-300 bg-gray-50 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                      placeholder="+91 XXXXX XXXXX"
+                      required
+                    />
+                  </div>
                 </div>
               </div>
-              <div className="mt-6 flex justify-end space-x-3">
+
+              <div className="mt-8 flex justify-end space-x-4">
                 <button
                   type="button"
                   onClick={() => setShowAddDoctorModal(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                  className="px-6 py-3 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  className="px-6 py-3 text-sm font-medium text-white bg-teal-600 border border-transparent rounded-md hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
                 >
                   Add Doctor
                 </button>
@@ -877,74 +935,100 @@ export default function LabDashboard() {
       {/* Add Service Modal */}
       {showAddServiceModal && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
-          <div className="relative mx-auto p-5 w-full max-w-md bg-white rounded-md shadow-lg">
-            <h2 className="text-xl font-semibold mb-4">Add New Service</h2>
-            <form onSubmit={handleAddService}>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Name
-                  </label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={serviceFormData.name}
-                    onChange={handleServiceInputChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    required
-                  />
+          <div className="relative mx-auto p-8 w-full max-w-2xl bg-white rounded-xl shadow-lg">
+            <button
+              onClick={() => setShowAddServiceModal(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-500 focus:outline-none"
+            >
+              <span className="sr-only">Close</span>
+              <FaTimes className="h-5 w-5" />
+            </button>
+
+            <div className="text-center mb-6">
+              <div className="mx-auto h-16 w-16 bg-teal-100 rounded-full flex items-center justify-center">
+                <FaFlask className="h-8 w-8 text-teal-600" />
+              </div>
+              <h2 className="mt-4 text-2xl font-semibold text-gray-900">Add New Service</h2>
+              <p className="mt-2 text-sm text-gray-500">Please fill in the service details below</p>
+            </div>
+
+            <form onSubmit={handleAddService} className="mt-8">
+              <div className="grid grid-cols-2 gap-6">
+                <div className="col-span-2">
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaFlask className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      type="text"
+                      name="name"
+                      value={serviceFormData.name}
+                      onChange={handleServiceInputChange}
+                      className="pl-10 w-full h-12 rounded-md border border-gray-300 bg-gray-50 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                      placeholder="Service Name"
+                      required
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Description
-                  </label>
+
+                <div className="col-span-2">
                   <textarea
                     name="description"
                     value={serviceFormData.description}
                     onChange={handleServiceInputChange}
+                    className="w-full rounded-md border border-gray-300 bg-gray-50 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                    placeholder="Service Description"
                     rows="3"
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                     required
                   ></textarea>
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Price (₹)
-                  </label>
-                  <input
-                    type="number"
-                    name="price"
-                    value={serviceFormData.price}
-                    onChange={handleServiceInputChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    required
-                  />
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <span className="text-gray-400">₹</span>
+                    </div>
+                    <input
+                      type="number"
+                      name="price"
+                      value={serviceFormData.price}
+                      onChange={handleServiceInputChange}
+                      className="pl-8 w-full h-12 rounded-md border border-gray-300 bg-gray-50 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                      placeholder="Price"
+                      required
+                    />
+                  </div>
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Duration (minutes)
-                  </label>
-                  <input
-                    type="number"
-                    name="duration"
-                    value={serviceFormData.duration}
-                    onChange={handleServiceInputChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    required
-                  />
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaClock className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      type="number"
+                      name="duration"
+                      value={serviceFormData.duration}
+                      onChange={handleServiceInputChange}
+                      className="pl-10 w-full h-12 rounded-md border border-gray-300 bg-gray-50 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                      placeholder="Duration (minutes)"
+                      required
+                    />
+                  </div>
                 </div>
               </div>
-              <div className="mt-6 flex justify-end space-x-3">
+
+              <div className="mt-8 flex justify-end space-x-4">
                 <button
                   type="button"
                   onClick={() => setShowAddServiceModal(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                  className="px-6 py-3 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  className="px-6 py-3 text-sm font-medium text-white bg-teal-600 border border-transparent rounded-md hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
                 >
                   Add Service
                 </button>

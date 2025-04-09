@@ -40,11 +40,29 @@ async function getLabs(req) {
       query.isActive = isActive === "true";
     }
 
-    // Get labs
-    const labs = await Lab.find(query).populate(
-      "labAdmin",
-      "name email mobile"
-    );
+    // Get labs with population and strict options disabled
+    const labs = await Lab.find(query)
+      .populate({
+        path: 'labAdmin',
+        model: User,
+        select: 'name email mobile',
+        strictPopulate: false
+      })
+      .exec();
+
+    // If labs are found but population failed, manually populate
+    if (labs.length > 0 && !labs[0].labAdmin) {
+      const populatedLabs = await Promise.all(
+        labs.map(async (lab) => {
+          const admin = await User.findById(lab.labAdmin).select('name email mobile');
+          return {
+            ...lab.toObject(),
+            labAdmin: admin
+          };
+        })
+      );
+      return NextResponse.json({ labs: populatedLabs });
+    }
 
     return NextResponse.json({ labs });
   } catch (error) {
