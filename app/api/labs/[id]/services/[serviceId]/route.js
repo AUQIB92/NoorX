@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import db from "../../../../lib/db";
-import Lab from "../../../../models/Lab";
-import LabService from "../../../../models/LabService";
-import { withAuth } from "../../../../middleware/auth";
+import db from "../../../lib/db";
+import Lab from "../../../models/Lab";
+import LabService from "../../../models/LabService";
+import { withAuth } from "../../../middleware/auth";
 
 // GET /api/labs/[id]/services/[serviceId] - Get a specific lab service
 async function getLabService(req, { params }) {
