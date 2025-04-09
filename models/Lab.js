@@ -4,56 +4,42 @@ const labSchema = new mongoose.Schema(
   {
     name: {
       type: String,
-      required: [true, "Lab name is required"],
+      required: [true, "Please provide a lab name"],
       trim: true,
-      unique: true,
     },
     address: {
-      street: String,
-      city: String,
-      state: String,
-      zipCode: String,
-      country: String,
+      type: String,
+      required: [true, "Please provide an address"],
     },
-    contactInfo: {
-      phone: String,
-      mobile: String,
-      email: String,
+    phone: {
+      type: String,
+      required: [true, "Please provide a phone number"],
     },
     email: {
       type: String,
-      required: [true, "Email is required"],
-      trim: true,
-      lowercase: true,
+      required: [true, "Please provide an email"],
       unique: true,
+      lowercase: true,
     },
-    labAdmin: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+    description: {
+      type: String,
+      default: "",
     },
-    workingHours: {
-      monday: { open: String, close: String },
-      tuesday: { open: String, close: String },
-      wednesday: { open: String, close: String },
-      thursday: { open: String, close: String },
-      friday: { open: String, close: String },
-      saturday: { open: String, close: String },
-      sunday: { open: String, close: String },
-    },
-    location: {
-      type: {
-        type: String,
-        enum: ["Point"],
-        default: "Point",
-      },
-      coordinates: {
-        type: [Number],
-        default: [0, 0],
-      },
+    openingHours: {
+      type: String,
+      required: [true, "Please provide opening hours"],
     },
     isActive: {
       type: Boolean,
       default: true,
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
+    updatedAt: {
+      type: Date,
+      default: Date.now,
     },
   },
   {
@@ -64,6 +50,7 @@ const labSchema = new mongoose.Schema(
 // Create index for location field
 labSchema.index({ location: "2dsphere" });
 
+// Prevent duplicate model initialization
 const Lab = mongoose.models.Lab || mongoose.model("Lab", labSchema);
 
 export default Lab;
