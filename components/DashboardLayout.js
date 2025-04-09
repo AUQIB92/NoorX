@@ -81,6 +81,39 @@ export default function DashboardLayout({ children, role }) {
             label: "Manage Services",
             icon: <FaMedkit className="mr-2" />,
           },
+          {
+            href: "/dashboard/admin/labs",
+            label: "Manage Labs",
+            icon: <FaHospital className="mr-2" />,
+          },
+        ];
+      case "labAdmin":
+        return [
+          {
+            href: "/dashboard/lab",
+            label: "Dashboard",
+            icon: <FaHome className="mr-2" />,
+          },
+          {
+            href: "/dashboard/lab/doctors",
+            label: "Manage Doctors",
+            icon: <FaUserMd className="mr-2" />,
+          },
+          {
+            href: "/dashboard/lab/services",
+            label: "Manage Services",
+            icon: <FaMedkit className="mr-2" />,
+          },
+          {
+            href: "/dashboard/lab/appointments",
+            label: "Appointments",
+            icon: <FaCalendarAlt className="mr-2" />,
+          },
+          {
+            href: "/dashboard/lab/profile",
+            label: "Lab Profile",
+            icon: <FaHospital className="mr-2" />,
+          },
         ];
       case "doctor":
         return [
@@ -138,7 +171,7 @@ export default function DashboardLayout({ children, role }) {
         <div className="p-4 flex flex-col items-center">
           <div className="flex items-center">
             <FaHospital className="h-8 w-8 mr-2" />
-            <span className="text-xl font-bold">Dr. Imran's Healthcare</span>
+            <span className="text-xl font-bold">Sehat</span>
           </div>
           <span className="text-sm text-primary-200 mt-1">By ArwaaLabs</span>
         </div>
@@ -183,7 +216,7 @@ export default function DashboardLayout({ children, role }) {
           <div className="flex flex-col">
             <div className="flex items-center">
               <FaHospital className="h-6 w-6 mr-2" />
-              <span className="font-bold">Dr. Imran's Healthcare</span>
+              <span className="font-bold">Sehat</span>
             </div>
             <span className="text-xs text-primary-200 ml-8">By ArwaaLabs</span>
           </div>

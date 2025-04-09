@@ -4,9 +4,9 @@ import "../styles/globals.css";
 import Script from "next/script";
 
 export const metadata = {
-  title: "Dr. Imran's Healthcare and Diagnostic Centre",
+  title: "Sehat - Your Health, Our Priority",
   description:
-    "Book appointments with top healthcare professionals at Dr. Imran's Healthcare and Diagnostic Centre",
+    "Book appointments with top healthcare professionals at Sehat - Your Health, Our Priority",
 };
 
 export default function RootLayout({ children }) {

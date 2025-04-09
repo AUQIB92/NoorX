@@ -248,49 +248,47 @@ export default function AdminDashboard() {
         {/* Quick Actions */}
         <div className="bg-white rounded-lg shadow-md p-4">
           <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Link
-              href="/dashboard/admin/doctors/add"
-              className="bg-primary-50 hover:bg-primary-100 p-4 rounded-lg flex flex-col items-center text-center"
-            >
-              <FaUserMd className="text-3xl text-primary-500 mb-2" />
-              <h3 className="font-medium">Add Doctor</h3>
-              <p className="text-sm text-gray-600 mt-1">
-                Add a new doctor to the system
-              </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Link href="/dashboard/admin/doctors/add">
+              <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
+                <div className="flex items-center justify-center w-12 h-12 bg-teal-100 text-teal-600 rounded-full mb-4">
+                  <FaUserMd size={24} />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">Add Doctor</h3>
+                <p className="text-gray-600">Add a new doctor to the system</p>
+              </div>
             </Link>
 
-            <Link
-              href="/dashboard/admin/doctors"
-              className="bg-primary-50 hover:bg-primary-100 p-4 rounded-lg flex flex-col items-center text-center"
-            >
-              <FaUserMd className="text-3xl text-primary-500 mb-2" />
-              <h3 className="font-medium">Manage Doctors</h3>
-              <p className="text-sm text-gray-600 mt-1">
-                View and manage all doctors
-              </p>
+            <Link href="/dashboard/admin/labs">
+              <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
+                <div className="flex items-center justify-center w-12 h-12 bg-teal-100 text-teal-600 rounded-full mb-4">
+                  <FaHospital size={24} />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">Manage Labs</h3>
+                <p className="text-gray-600">Add and manage diagnostic labs</p>
+              </div>
             </Link>
 
-            <Link
-              href="/dashboard/admin/services"
-              className="bg-primary-50 hover:bg-primary-100 p-4 rounded-lg flex flex-col items-center text-center"
-            >
-              <FaMedkit className="text-3xl text-primary-500 mb-2" />
-              <h3 className="font-medium">Manage Services</h3>
-              <p className="text-sm text-gray-600 mt-1">
-                Add and manage clinic services
-              </p>
+            <Link href="/dashboard/admin/doctors">
+              <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
+                <div className="flex items-center justify-center w-12 h-12 bg-teal-100 text-teal-600 rounded-full mb-4">
+                  <FaUserMd size={24} />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">Manage Doctors</h3>
+                <p className="text-gray-600">View and manage all doctors</p>
+              </div>
             </Link>
 
-            <Link
-              href="/dashboard/admin/slots"
-              className="bg-primary-50 hover:bg-primary-100 p-4 rounded-lg flex flex-col items-center text-center"
-            >
-              <FaCalendarAlt className="text-3xl text-primary-500 mb-2" />
-              <h3 className="font-medium">Manage Slots</h3>
-              <p className="text-sm text-gray-600 mt-1">
-                Configure doctor appointment slots
-              </p>
+            <Link href="/dashboard/admin/slots">
+              <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
+                <div className="flex items-center justify-center w-12 h-12 bg-teal-100 text-teal-600 rounded-full mb-4">
+                  <FaClock size={24} />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">Manage Slots</h3>
+                <p className="text-gray-600">
+                  Configure doctor appointment slots
+                </p>
+              </div>
             </Link>
           </div>
         </div>

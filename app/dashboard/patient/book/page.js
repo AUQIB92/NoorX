@@ -36,30 +36,39 @@ export default function BookAppointment() {
   const [doctorAvailability, setDoctorAvailability] = useState([]);
   const [doctorDetails, setDoctorDetails] = useState(null);
   const [serviceDetails, setServiceDetails] = useState(null);
-  
+
   // Debug state
   const [showDebug, setShowDebug] = useState(false);
   const [debugLogs, setDebugLogs] = useState([]);
 
   // Override console methods to capture logs
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== "undefined") {
       const originalConsoleLog = console.log;
       const originalConsoleError = console.error;
       const originalConsoleWarn = console.warn;
 
-      console.log = function() {
-        setDebugLogs(prev => [...prev, { type: 'log', args: Array.from(arguments), time: new Date() }]);
+      console.log = function () {
+        setDebugLogs((prev) => [
+          ...prev,
+          { type: "log", args: Array.from(arguments), time: new Date() },
+        ]);
         originalConsoleLog.apply(console, arguments);
       };
 
-      console.error = function() {
-        setDebugLogs(prev => [...prev, { type: 'error', args: Array.from(arguments), time: new Date() }]);
+      console.error = function () {
+        setDebugLogs((prev) => [
+          ...prev,
+          { type: "error", args: Array.from(arguments), time: new Date() },
+        ]);
         originalConsoleError.apply(console, arguments);
       };
 
-      console.warn = function() {
-        setDebugLogs(prev => [...prev, { type: 'warn', args: Array.from(arguments), time: new Date() }]);
+      console.warn = function () {
+        setDebugLogs((prev) => [
+          ...prev,
+          { type: "warn", args: Array.from(arguments), time: new Date() },
+        ]);
         originalConsoleWarn.apply(console, arguments);
       };
 
@@ -72,7 +81,8 @@ export default function BookAppointment() {
   }, []);
 
   // Initialize Razorpay payment hook
-  const { processPayment, isScriptLoaded: razorpayScriptLoaded } = useRazorpayPayment();
+  const { processPayment, isScriptLoaded: razorpayScriptLoaded } =
+    useRazorpayPayment();
 
   // Get tomorrow's date as the minimum date for booking
   const tomorrow = new Date();
@@ -212,7 +222,7 @@ export default function BookAppointment() {
         },
       });
       const data = await res.json();
-      
+
       if (res.ok && data.doctor) {
         // Set doctor availability
         setDoctorAvailability(data.doctor.availability || []);
@@ -233,7 +243,7 @@ export default function BookAppointment() {
         },
       });
       const data = await res.json();
-      
+
       if (res.ok && data.service) {
         // Set service details for payment processing
         setServiceDetails(data.service);
@@ -340,10 +350,10 @@ export default function BookAppointment() {
       // Fetch all slots for this doctor and date directly from the API
       // The API now handles filtering out booked slots
       const token = localStorage.getItem("token");
-      
+
       // Add timestamp to avoid caching issues
       const timestamp = new Date().getTime();
-      
+
       const slotsRes = await fetch(
         `/api/doctors/${selectedDoctor}/slots?date=${selectedDate}&_t=${timestamp}`,
         {
@@ -351,7 +361,7 @@ export default function BookAppointment() {
             Authorization: `Bearer ${token}`,
           },
           // Ensure we're not using cached data
-          cache: "no-store"
+          cache: "no-store",
         }
       );
 
@@ -397,14 +407,21 @@ export default function BookAppointment() {
         });
 
         console.log("Final available time slots:", availableTimeSlots);
-        
+
         // If the currently selected time is no longer available, clear it
-        if (selectedTime && !availableTimeSlots.some(slot => slot.time === selectedTime)) {
-          console.log("Selected time is no longer available, clearing selection");
+        if (
+          selectedTime &&
+          !availableTimeSlots.some((slot) => slot.time === selectedTime)
+        ) {
+          console.log(
+            "Selected time is no longer available, clearing selection"
+          );
           setSelectedTime("");
-          toast.info("The previously selected time slot is no longer available.");
+          toast.info(
+            "The previously selected time slot is no longer available."
+          );
         }
-        
+
         setAvailableSlots(availableTimeSlots);
         setIsCheckingSlots(false);
         return;
@@ -505,14 +522,21 @@ export default function BookAppointment() {
         });
 
         console.log("Final available time slots:", availableTimeSlots);
-        
+
         // If the currently selected time is no longer available, clear it
-        if (selectedTime && !availableTimeSlots.some(slot => slot.time === selectedTime)) {
-          console.log("Selected time is no longer available, clearing selection");
+        if (
+          selectedTime &&
+          !availableTimeSlots.some((slot) => slot.time === selectedTime)
+        ) {
+          console.log(
+            "Selected time is no longer available, clearing selection"
+          );
           setSelectedTime("");
-          toast.info("The previously selected time slot is no longer available.");
+          toast.info(
+            "The previously selected time slot is no longer available."
+          );
         }
-        
+
         setAvailableSlots(availableTimeSlots);
       }
     } catch (error) {
@@ -529,11 +553,11 @@ export default function BookAppointment() {
     console.log("handleSubmit called - starting appointment booking process");
 
     if (!selectedDoctor || !selectedService || !selectedDate || !selectedTime) {
-      console.error("Missing required fields:", { 
-        doctor: selectedDoctor ? "selected" : "missing", 
-        service: selectedService ? "selected" : "missing", 
-        date: selectedDate ? "selected" : "missing", 
-        time: selectedTime ? "selected" : "missing" 
+      console.error("Missing required fields:", {
+        doctor: selectedDoctor ? "selected" : "missing",
+        service: selectedService ? "selected" : "missing",
+        date: selectedDate ? "selected" : "missing",
+        time: selectedTime ? "selected" : "missing",
       });
       toast.error("Please complete all required fields");
       return;
@@ -541,11 +565,13 @@ export default function BookAppointment() {
 
     // Validate that we have the necessary details for payment
     if (paymentMethod === "online" && (!doctorDetails || !serviceDetails)) {
-      console.error("Missing details for online payment:", { 
-        doctorDetails: doctorDetails ? "present" : "missing", 
-        serviceDetails: serviceDetails ? "present" : "missing" 
+      console.error("Missing details for online payment:", {
+        doctorDetails: doctorDetails ? "present" : "missing",
+        serviceDetails: serviceDetails ? "present" : "missing",
       });
-      toast.error("Missing required details for online payment. Please try again.");
+      toast.error(
+        "Missing required details for online payment. Please try again."
+      );
       return;
     }
 
@@ -558,9 +584,12 @@ export default function BookAppointment() {
         setIsSubmitting(false);
         return;
       }
-      
-      console.log("Starting appointment booking with payment method:", paymentMethod);
-      
+
+      console.log(
+        "Starting appointment booking with payment method:",
+        paymentMethod
+      );
+
       // Common appointment data for both payment methods
       const appointmentData = {
         doctor_id: selectedDoctor,
@@ -571,14 +600,19 @@ export default function BookAppointment() {
         payment_amount: serviceDetails?.price || 0,
         booked_by: "patient",
       };
-      
-      console.log("Appointment data being sent to server:", JSON.stringify(appointmentData));
-      
+
+      console.log(
+        "Appointment data being sent to server:",
+        JSON.stringify(appointmentData)
+      );
+
       // If payment method is cash, create appointment directly
       if (paymentMethod === "cash") {
         console.log("Processing cash payment...");
         try {
-          console.log("Making API request to create appointment with cash payment...");
+          console.log(
+            "Making API request to create appointment with cash payment..."
+          );
           const res = await fetch("/api/appointments", {
             method: "POST",
             headers: {
@@ -593,23 +627,28 @@ export default function BookAppointment() {
 
           console.log("Appointment API response status:", res.status);
           const data = await res.json();
-          console.log("Cash payment appointment response:", JSON.stringify(data));
+          console.log(
+            "Cash payment appointment response:",
+            JSON.stringify(data)
+          );
 
           if (res.ok) {
             toast.success("Appointment booked successfully");
             router.push("/dashboard/patient/appointments");
           } else {
             console.error("Failed to book appointment:", data);
-            
+
             // Check for specific error messages
             if (data.error && data.error.includes("already booked")) {
-              toast.error("This time slot is already booked. Please select another time.");
+              toast.error(
+                "This time slot is already booked. Please select another time."
+              );
               // Refresh available slots to get updated availability
               refreshAvailableSlots();
             } else {
               toast.error(data.error || "Failed to book appointment");
             }
-            
+
             setIsSubmitting(false);
           }
         } catch (cashError) {
@@ -620,12 +659,15 @@ export default function BookAppointment() {
       } else {
         // For online payment, initiate Razorpay payment directly without creating a pending appointment
         console.log("Processing online payment...");
-        
+
         // Show a toast message to inform the user about the payment process
-        toast.info("Please complete the payment to confirm your appointment. Your appointment will only be created after successful payment.", {
-          autoClose: 5000
-        });
-        
+        toast.info(
+          "Please complete the payment to confirm your appointment. Your appointment will only be created after successful payment.",
+          {
+            autoClose: 5000,
+          }
+        );
+
         // Initiate Razorpay payment directly
         initiateRazorpayPaymentWithoutAppointment(appointmentData);
       }
@@ -640,7 +682,7 @@ export default function BookAppointment() {
   const refreshAvailableSlots = async () => {
     console.log("Refreshing available slots after booking error");
     setSelectedTime(""); // Clear the selected time since it's no longer available
-    
+
     // Re-fetch available slots
     if (selectedDoctor && selectedDate) {
       await checkAvailableSlots();
@@ -650,16 +692,19 @@ export default function BookAppointment() {
   // Function to initiate Razorpay payment without creating an appointment first
   const initiateRazorpayPaymentWithoutAppointment = async (appointmentData) => {
     try {
-      console.log("initiateRazorpayPaymentWithoutAppointment called with data:", JSON.stringify(appointmentData));
-      
+      console.log(
+        "initiateRazorpayPaymentWithoutAppointment called with data:",
+        JSON.stringify(appointmentData)
+      );
+
       // Check if Razorpay script is loaded
       console.log("Razorpay script loaded status:", razorpayScriptLoaded);
-      
+
       // Check if we have the required details for payment
       if (!doctorDetails || !serviceDetails) {
         console.error("Missing doctor or service details for payment:", {
           doctorDetails: doctorDetails ? "present" : "missing",
-          serviceDetails: serviceDetails ? "present" : "missing"
+          serviceDetails: serviceDetails ? "present" : "missing",
         });
         toast.error("Unable to process payment. Missing required details.");
         setIsSubmitting(false);
@@ -681,64 +726,83 @@ export default function BookAppointment() {
           doctorName: doctorDetails.name,
           service: serviceDetails.name,
           date: selectedDate,
-          time: selectedTime
-        }
+          time: selectedTime,
+        },
       };
-      
-      console.log("Creating Razorpay order with data:", JSON.stringify(orderData));
-      
+
+      console.log(
+        "Creating Razorpay order with data:",
+        JSON.stringify(orderData)
+      );
+
       // Create Razorpay order
       const orderResponse = await fetch("/api/payments/razorpay/create-order", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(orderData)
+        body: JSON.stringify(orderData),
       });
-      
+
       if (!orderResponse.ok) {
         const errorData = await orderResponse.json();
         console.error("Failed to create order:", errorData);
-        toast.error(errorData.error || "Failed to create payment order. Please try again.");
+        toast.error(
+          errorData.error || "Failed to create payment order. Please try again."
+        );
         setIsSubmitting(false);
         return;
       }
-      
+
       const orderResponseData = await orderResponse.json();
-      console.log("Order created successfully:", JSON.stringify(orderResponseData));
-      
+      console.log(
+        "Order created successfully:",
+        JSON.stringify(orderResponseData)
+      );
+
       if (!orderResponseData.order || !orderResponseData.order.id) {
         console.error("Invalid order response:", orderResponseData);
-        toast.error("Failed to create payment order. Invalid response from server.");
+        toast.error(
+          "Failed to create payment order. Invalid response from server."
+        );
         setIsSubmitting(false);
         return;
       }
-      
+
       // Configure Razorpay options
       const options = {
         key: orderResponseData.key_id,
         amount: orderResponseData.order.amount,
         currency: orderResponseData.order.currency,
-        name: "Dr. Imran's Healthcare",
+        name: "Sehat",
         description: `Payment for ${serviceDetails.name} with Dr. ${doctorDetails.name}`,
         order_id: orderResponseData.order.id,
-        handler: async function(response) {
-          console.log("Payment successful, handler called with response:", JSON.stringify(response));
-          
+        handler: async function (response) {
+          console.log(
+            "Payment successful, handler called with response:",
+            JSON.stringify(response)
+          );
+
           try {
             // Create appointment with payment details
             console.log("Creating appointment after successful payment...");
-            
+
             // Ensure we have all required payment details
-            if (!response.razorpay_payment_id || !response.razorpay_order_id || !response.razorpay_signature) {
+            if (
+              !response.razorpay_payment_id ||
+              !response.razorpay_order_id ||
+              !response.razorpay_signature
+            ) {
               console.error("Missing payment details from Razorpay:", response);
-              toast.error("Payment was successful, but payment details are incomplete. Please contact support with your payment ID: " + 
-                (response.razorpay_payment_id || "unknown"));
+              toast.error(
+                "Payment was successful, but payment details are incomplete. Please contact support with your payment ID: " +
+                  (response.razorpay_payment_id || "unknown")
+              );
               setIsSubmitting(false);
               return;
             }
-            
+
             // Prepare the appointment data with payment details
             const appointmentPayload = {
               ...appointmentData,
@@ -746,11 +810,14 @@ export default function BookAppointment() {
               payment_status: "completed",
               payment_id: response.razorpay_payment_id,
               razorpay_order_id: response.razorpay_order_id,
-              razorpay_signature: response.razorpay_signature
+              razorpay_signature: response.razorpay_signature,
             };
-            
-            console.log("Sending appointment creation request with payload:", JSON.stringify(appointmentPayload));
-            
+
+            console.log(
+              "Sending appointment creation request with payload:",
+              JSON.stringify(appointmentPayload)
+            );
+
             const appointmentRes = await fetch("/api/appointments", {
               method: "POST",
               headers: {
@@ -759,31 +826,42 @@ export default function BookAppointment() {
               },
               body: JSON.stringify(appointmentPayload),
             });
-            
+
             if (!appointmentRes.ok) {
-              let errorMessage = "Failed to book appointment after payment. Please contact support.";
+              let errorMessage =
+                "Failed to book appointment after payment. Please contact support.";
               try {
                 const errorData = await appointmentRes.json();
-                console.error("Failed to create appointment after payment:", errorData);
-                
+                console.error(
+                  "Failed to create appointment after payment:",
+                  errorData
+                );
+
                 // Check for specific error messages
-                if (errorData.error && errorData.error.includes("already booked")) {
-                  errorMessage = "This time slot was booked by someone else while processing your payment. Your payment will be refunded.";
+                if (
+                  errorData.error &&
+                  errorData.error.includes("already booked")
+                ) {
+                  errorMessage =
+                    "This time slot was booked by someone else while processing your payment. Your payment will be refunded.";
                 } else if (errorData.error) {
                   errorMessage = errorData.error;
                 }
               } catch (parseError) {
                 console.error("Error parsing error response:", parseError);
               }
-              
+
               toast.error(errorMessage);
               setIsSubmitting(false);
               return;
             }
-            
+
             const appointmentResult = await appointmentRes.json();
-            console.log("Appointment created successfully after payment:", JSON.stringify(appointmentResult));
-            
+            console.log(
+              "Appointment created successfully after payment:",
+              JSON.stringify(appointmentResult)
+            );
+
             // Store appointment details in localStorage for the confirmation page
             if (appointmentResult && appointmentResult.appointment) {
               const appointmentDetails = {
@@ -794,13 +872,22 @@ export default function BookAppointment() {
                 time: selectedTime,
                 amount: serviceDetails.price,
                 paymentMethod: "online",
-                paymentId: response.razorpay_payment_id
+                paymentId: response.razorpay_payment_id,
               };
-              
-              console.log("Storing appointment details in localStorage:", JSON.stringify(appointmentDetails));
-              localStorage.setItem("appointmentDetails", JSON.stringify(appointmentDetails));
+
+              console.log(
+                "Storing appointment details in localStorage:",
+                JSON.stringify(appointmentDetails)
+              );
+              localStorage.setItem(
+                "appointmentDetails",
+                JSON.stringify(appointmentDetails)
+              );
             } else {
-              console.error("Missing appointment data in response:", appointmentResult);
+              console.error(
+                "Missing appointment data in response:",
+                appointmentResult
+              );
               // Create a fallback object with available data
               const fallbackDetails = {
                 doctorName: doctorDetails.name,
@@ -809,30 +896,40 @@ export default function BookAppointment() {
                 time: selectedTime,
                 amount: serviceDetails.price,
                 paymentMethod: "online",
-                paymentId: response.razorpay_payment_id
+                paymentId: response.razorpay_payment_id,
               };
-              console.log("Storing fallback appointment details:", JSON.stringify(fallbackDetails));
-              localStorage.setItem("appointmentDetails", JSON.stringify(fallbackDetails));
+              console.log(
+                "Storing fallback appointment details:",
+                JSON.stringify(fallbackDetails)
+              );
+              localStorage.setItem(
+                "appointmentDetails",
+                JSON.stringify(fallbackDetails)
+              );
             }
-            
-            toast.success("Payment successful! Your appointment has been confirmed. A confirmation email has been sent to your registered email address.");
+
+            toast.success(
+              "Payment successful! Your appointment has been confirmed. A confirmation email has been sent to your registered email address."
+            );
             router.push("/dashboard/patient/appointment-confirmation");
           } catch (error) {
             console.error("Error creating appointment after payment:", error);
             console.error("Error details:", error.message);
             console.error("Error stack:", error.stack);
-            toast.error("Payment was successful, but there was an error creating your appointment. Please contact support with your payment ID: " + 
-              (response.razorpay_payment_id || "unknown"));
+            toast.error(
+              "Payment was successful, but there was an error creating your appointment. Please contact support with your payment ID: " +
+                (response.razorpay_payment_id || "unknown")
+            );
             setIsSubmitting(false);
           }
         },
         prefill: {
           name: localStorage.getItem("userName") || "",
           email: localStorage.getItem("userEmail") || "",
-          contact: localStorage.getItem("userPhone") || ""
+          contact: localStorage.getItem("userPhone") || "",
         },
         theme: {
-          color: "#4f46e5"
+          color: "#4f46e5",
         },
         // Add specific payment method configuration
         config: {
@@ -841,7 +938,12 @@ export default function BookAppointment() {
             preferences: {
               show_default_blocks: true, // Show all payment blocks by default
               // Set the order of payment methods
-              sequence: ["block.upi", "block.wallet", "block.netbanking", "block.card"],
+              sequence: [
+                "block.upi",
+                "block.wallet",
+                "block.netbanking",
+                "block.card",
+              ],
               // Make blocks expanded by default
               blocks: {
                 upi: {
@@ -852,58 +954,72 @@ export default function BookAppointment() {
                       // Use intent flow for better UPI app selection
                       flow: "intent",
                       // Explicitly list popular UPI apps
-                      apps: ["google_pay", "phonepe", "paytm", "bhim", "amazon_pay"]
-                    }
-                  ]
+                      apps: [
+                        "google_pay",
+                        "phonepe",
+                        "paytm",
+                        "bhim",
+                        "amazon_pay",
+                      ],
+                    },
+                  ],
                 },
                 banks: {
                   name: "Pay via Net Banking",
                   instruments: [
                     {
-                      method: "netbanking"
-                    }
-                  ]
+                      method: "netbanking",
+                    },
+                  ],
                 },
                 wallets: {
                   name: "Pay via Wallet",
                   instruments: [
                     {
-                      method: "wallet"
-                    }
-                  ]
+                      method: "wallet",
+                    },
+                  ],
                 },
                 cards: {
                   name: "Pay via Card",
                   instruments: [
                     {
-                      method: "card"
-                    }
-                  ]
-                }
-              }
-            }
-          }
+                      method: "card",
+                    },
+                  ],
+                },
+              },
+            },
+          },
         },
         modal: {
-          ondismiss: function() {
+          ondismiss: function () {
             console.log("Payment modal dismissed by user");
-            toast.info("Payment cancelled. Your appointment was not booked. Please try again when you're ready to book your appointment.");
+            toast.info(
+              "Payment cancelled. Your appointment was not booked. Please try again when you're ready to book your appointment."
+            );
             setIsSubmitting(false);
-          }
-        }
+          },
+        },
       };
-      
-      console.log("Initializing Razorpay with options:", JSON.stringify(options));
-      
+
+      console.log(
+        "Initializing Razorpay with options:",
+        JSON.stringify(options)
+      );
+
       // Initialize Razorpay
       const razorpay = new window.Razorpay(options);
       console.log("Razorpay instance created");
-      
+
       // Open Razorpay checkout
       console.log("Opening Razorpay checkout...");
       razorpay.open();
     } catch (error) {
-      console.error("Error in initiateRazorpayPaymentWithoutAppointment:", error);
+      console.error(
+        "Error in initiateRazorpayPaymentWithoutAppointment:",
+        error
+      );
       console.error("Error message:", error.message);
       console.error("Error stack:", error.stack);
       toast.error("Failed to initiate payment. Please try again.");
@@ -995,7 +1111,7 @@ export default function BookAppointment() {
     setSelectedDate("");
     setSelectedTime("");
     setAvailableSlots([]);
-    
+
     if (doctorId) {
       fetchDoctorDetails(doctorId);
       fetchDoctorServices(doctorId);
@@ -1012,7 +1128,7 @@ export default function BookAppointment() {
     setSelectedDate("");
     setSelectedTime("");
     setAvailableSlots([]);
-    
+
     if (serviceId) {
       fetchServiceDetails(serviceId);
     } else {
@@ -1627,8 +1743,19 @@ export default function BookAppointment() {
 
                 {notes && (
                   <div className="flex items-start">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-primary-600 mr-3 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5 text-primary-600 mr-3 mt-0.5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                      />
                     </svg>
                     <div>
                       <p className="font-medium">Additional Notes</p>
@@ -1662,8 +1789,19 @@ export default function BookAppointment() {
                 >
                   <div className="flex items-center">
                     <div className="bg-green-100 p-3 rounded-full">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-6 w-6 text-green-600"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"
+                        />
                       </svg>
                     </div>
                     <div className="ml-4">
@@ -1685,8 +1823,19 @@ export default function BookAppointment() {
                 >
                   <div className="flex items-center">
                     <div className="bg-blue-100 p-3 rounded-full">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H5a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-6 w-6 text-blue-600"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H5a3 3 0 00-3 3v8a3 3 0 003 3z"
+                        />
                       </svg>
                     </div>
                     <div className="ml-4">
@@ -1695,24 +1844,47 @@ export default function BookAppointment() {
                         Pay now using Razorpay (UPI, Card, Netbanking, Wallet)
                       </p>
                       <p className="text-xs text-indigo-600 mt-1">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-4 w-4 inline mr-1"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
                         </svg>
-                        Appointment will only be created after successful payment
+                        Appointment will only be created after successful
+                        payment
                       </p>
                     </div>
                   </div>
                 </div>
               </div>
-              
+
               <div className="mt-4 text-center">
-                <a 
-                  href="/dashboard/patient/payment-guide" 
-                  target="_blank" 
+                <a
+                  href="/dashboard/patient/payment-guide"
+                  target="_blank"
                   className="text-primary-600 hover:text-primary-800 text-sm inline-flex items-center"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-4 w-4 mr-1"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
                   </svg>
                   Learn more about online payments
                 </a>

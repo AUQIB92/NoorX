@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { toast } from 'react-toastify';
-import { useRouter } from 'next/navigation';
+import { useState } from "react";
+import { toast } from "react-toastify";
+import { useRouter } from "next/navigation";
 
 /**
  * Component to handle Razorpay payment integration
@@ -22,18 +22,18 @@ const RazorpayPayment = ({
   selectedTime,
   onSuccess,
   onCancel,
-  onError
+  onError,
 }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const router = useRouter();
 
   const initiatePayment = async () => {
     if (isProcessing) return;
-    
+
     setIsProcessing(true);
     try {
       const token = localStorage.getItem("token");
-      
+
       // Create Razorpay order
       const orderRes = await fetch("/api/payments/razorpay/create-order", {
         method: "POST",
@@ -65,37 +65,45 @@ const RazorpayPayment = ({
         key: orderData.key_id,
         amount: orderData.order.amount,
         currency: orderData.order.currency,
-        name: "Dr. Imran's Healthcare",
+        name: "Sehat",
         description: `Appointment with ${doctorDetails.name} for ${serviceDetails.name}`,
         order_id: orderData.order.id,
         handler: async function (response) {
           try {
             // Verify payment
-            const verifyRes = await fetch("/api/payments/razorpay/verify-payment", {
-              method: "PUT",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
-              },
-              body: JSON.stringify({
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_signature: response.razorpay_signature,
-                appointmentId: appointmentData._id,
-              }),
-            });
+            const verifyRes = await fetch(
+              "/api/payments/razorpay/verify-payment",
+              {
+                method: "PUT",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_signature: response.razorpay_signature,
+                  appointmentId: appointmentData._id,
+                }),
+              }
+            );
 
             const verifyData = await verifyRes.json();
 
             if (verifyRes.ok) {
               if (onSuccess) onSuccess(verifyData);
             } else {
-              throw new Error(verifyData.error || "Payment verification failed");
+              throw new Error(
+                verifyData.error || "Payment verification failed"
+              );
             }
           } catch (error) {
             console.error("Payment verification error:", error);
             if (onError) onError(error);
-            else toast.error(error.message || "An error occurred during payment verification");
+            else
+              toast.error(
+                error.message || "An error occurred during payment verification"
+              );
           } finally {
             setIsProcessing(false);
           }
@@ -109,12 +117,13 @@ const RazorpayPayment = ({
           color: "#4f46e5",
         },
         modal: {
-          ondismiss: function() {
+          ondismiss: function () {
             if (onCancel) onCancel();
-            else toast.info("Payment cancelled. You can complete payment later.");
+            else
+              toast.info("Payment cancelled. You can complete payment later.");
             setIsProcessing(false);
-          }
-        }
+          },
+        },
       };
 
       // Check if Razorpay is loaded
@@ -123,7 +132,9 @@ const RazorpayPayment = ({
         const razorpay = new window.Razorpay(options);
         razorpay.open();
       } else {
-        toast.error("Razorpay payment gateway is not available. Please try again later.");
+        toast.error(
+          "Razorpay payment gateway is not available. Please try again later."
+        );
         setIsProcessing(false);
         if (onError) onError(new Error("Razorpay not loaded"));
       }
@@ -138,4 +149,4 @@ const RazorpayPayment = ({
   return { initiatePayment, isProcessing };
 };
 
-export default RazorpayPayment; 
+export default RazorpayPayment;
