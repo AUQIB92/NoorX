@@ -5,7 +5,7 @@ import User from "../../../../models/User";
 import { withAuth } from "../../../../middleware/auth";
 
 // Add a single slot
-async function addSlot(req) {
+async function addSlot(req, context) {
   try {
     await connectToDatabase();
     const {
@@ -224,4 +224,4 @@ async function addSlot(req) {
 }
 
 // Apply authentication middleware (admin only)
-export const POST = withAuth(addSlot, ["admin"]);
+export const POST = (req, context) => withAuth(addSlot, ["admin"])(req, context);

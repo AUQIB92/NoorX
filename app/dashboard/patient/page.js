@@ -29,7 +29,18 @@ export default function PatientDashboard() {
 
   const fetchAppointments = async (retryCount = 0) => {
     try {
+      // Check for token in localStorage
       const token = localStorage.getItem("token");
+      
+      // If token doesn't exist, show an error and don't make the request
+      if (!token) {
+        console.log("Not fetching patient data");
+        toast.error("Authentication token not found. Please log in again.");
+        setIsLoading(false);
+        return;
+      }
+
+      console.log("Fetching appointments with token:", token ? "Token exists" : "No token");
 
       const res = await fetch("/api/appointments", {
         headers: {
@@ -39,6 +50,7 @@ export default function PatientDashboard() {
         signal: AbortSignal.timeout(15000), // 15 second timeout
       });
 
+      console.log("Appointments API response status:", res.status);
       const data = await res.json();
 
       if (res.ok) {
@@ -60,6 +72,15 @@ export default function PatientDashboard() {
 
         setStats({ total, upcoming, completed, cancelled });
       } else {
+        // Handle authentication errors
+        if (res.status === 401) {
+          console.error("Authentication failed:", data.error);
+          toast.error("Your session has expired. Please log in again.");
+          // Consider redirecting to login page
+          // router.push("/auth/login");
+          return;
+        }
+        
         // Check if it's a connection error that we should retry
         if (
           data.error &&

@@ -18,6 +18,7 @@ import {
   FaCalendarCheck,
   FaUserClock,
   FaTimes,
+  FaHospital,
 } from "react-icons/fa";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -46,6 +47,7 @@ export default function LabDashboard() {
   const [showEditServiceModal, setShowEditServiceModal] = useState(false);
   const [showDeleteDoctorModal, setShowDeleteDoctorModal] = useState(false);
   const [showDeleteServiceModal, setShowDeleteServiceModal] = useState(false);
+  const [showAddLabModal, setShowAddLabModal] = useState(false);
   const [selectedDoctor, setSelectedDoctor] = useState(null);
   const [selectedService, setSelectedService] = useState(null);
   const [doctorFormData, setDoctorFormData] = useState({
@@ -63,6 +65,16 @@ export default function LabDashboard() {
     price: "",
     duration: "",
     isActive: true,
+  });
+  const [labFormData, setLabFormData] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    mobile: "",
+    address: "",
+    city: "",
+    state: "",
+    zipCode: "",
   });
 
   // Fetch lab data and associated doctors/services
@@ -231,6 +243,15 @@ export default function LabDashboard() {
     }));
   };
 
+  // Handle lab form input change
+  const handleLabInputChange = (e) => {
+    const { name, value } = e.target;
+    setLabFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
   // Handle adding a new doctor
   const handleAddDoctor = async (e) => {
     e.preventDefault();
@@ -306,6 +327,58 @@ export default function LabDashboard() {
     } catch (error) {
       console.error("Error adding service:", error);
       toast.error(error.message || "Failed to add service");
+    }
+  };
+
+  // Handle adding a new lab
+  const handleAddLab = async (e) => {
+    e.preventDefault();
+    try {
+      const token = localStorage.getItem("token");
+
+      const response = await fetch(`/api/labs`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          ...labFormData,
+          address: {
+            street: labFormData.address,
+            city: labFormData.city,
+            state: labFormData.state,
+            zipCode: labFormData.zipCode,
+          },
+          contactInfo: {
+            phone: labFormData.phone,
+            mobile: labFormData.mobile,
+          }
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to add lab");
+      }
+
+      toast.success("Lab added successfully");
+      setShowAddLabModal(false);
+      setLabFormData({
+        name: "",
+        email: "",
+        phone: "",
+        mobile: "",
+        address: "",
+        city: "",
+        state: "",
+        zipCode: "",
+      });
+      fetchLabData();
+    } catch (error) {
+      console.error("Error adding lab:", error);
+      toast.error(error.message || "Failed to add lab");
     }
   };
 
@@ -480,6 +553,77 @@ export default function LabDashboard() {
           </p>
         </div>
 
+        {/* Quick Actions */}
+        <div className="bg-gradient-to-br from-white to-gray-50 rounded-lg shadow-md p-6 mb-8">
+          <h2 className="text-xl font-semibold mb-6 text-gray-800">Quick Actions</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div 
+              onClick={() => setShowAddDoctorModal(true)}
+              className="transform transition-all duration-300 hover:scale-105 cursor-pointer"
+            >
+              <div className="bg-gradient-to-br from-blue-50 to-cyan-50 p-6 rounded-xl shadow-sm border border-blue-100 h-full group transition-all hover:shadow-md">
+                <div className="flex items-center justify-center w-16 h-16 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-full mb-4 shadow-md group-hover:shadow-lg transition-all group-hover:scale-110">
+                  <FaPlus className="h-8 w-8" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2 text-gray-800">Add New Doctor</h3>
+                <p className="text-gray-600 text-center">Add a new doctor to your lab</p>
+              </div>
+            </div>
+
+            <div 
+              onClick={() => setShowAddServiceModal(true)}
+              className="transform transition-all duration-300 hover:scale-105 cursor-pointer"
+            >
+              <div className="bg-gradient-to-br from-green-50 to-teal-50 p-6 rounded-xl shadow-sm border border-green-100 h-full group transition-all hover:shadow-md">
+                <div className="flex items-center justify-center w-16 h-16 bg-gradient-to-r from-green-500 to-teal-500 text-white rounded-full mb-4 shadow-md group-hover:shadow-lg transition-all group-hover:scale-110">
+                  <FaPlus className="h-8 w-8" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2 text-gray-800">Add Service</h3>
+                <p className="text-gray-600">Add a new diagnostic service</p>
+              </div>
+            </div>
+
+            <div 
+              onClick={() => setShowAddLabModal(true)}
+              className="transform transition-all duration-300 hover:scale-105 cursor-pointer"
+            >
+              <div className="bg-gradient-to-br from-amber-50 to-yellow-50 p-6 rounded-xl shadow-sm border border-amber-100 h-full group transition-all hover:shadow-md">
+                <div className="flex items-center justify-center w-16 h-16 bg-gradient-to-r from-amber-400 to-yellow-500 text-white rounded-full mb-4 shadow-md group-hover:shadow-lg transition-all group-hover:scale-110">
+                  <FaHospital className="h-8 w-8" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2 text-gray-800">Add New Lab</h3>
+                <p className="text-gray-600">Add a new diagnostic laboratory</p>
+              </div>
+            </div>
+
+            <div 
+              onClick={() => setActiveTab("doctors")}
+              className="transform transition-all duration-300 hover:scale-105 cursor-pointer"
+            >
+              <div className="bg-gradient-to-br from-purple-50 to-indigo-50 p-6 rounded-xl shadow-sm border border-purple-100 h-full group transition-all hover:shadow-md">
+                <div className="flex items-center justify-center w-16 h-16 bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded-full mb-4 shadow-md group-hover:shadow-lg transition-all group-hover:scale-110">
+                  <FaUserMd size={24} />
+                </div>
+                <h3 className="text-lg font-semibold mb-2 text-gray-800">Manage Doctors</h3>
+                <p className="text-gray-600">View and manage lab doctors</p>
+              </div>
+            </div>
+
+            <div 
+              onClick={() => setActiveTab("services")}
+              className="transform transition-all duration-300 hover:scale-105 cursor-pointer"
+            >
+              <div className="bg-gradient-to-br from-orange-50 to-amber-50 p-6 rounded-xl shadow-sm border border-orange-100 h-full group transition-all hover:shadow-md">
+                <div className="flex items-center justify-center w-16 h-16 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-full mb-4 shadow-md group-hover:shadow-lg transition-all group-hover:scale-110">
+                  <FaFlask size={24} />
+                </div>
+                <h3 className="text-lg font-semibold mb-2 text-gray-800">Manage Services</h3>
+                <p className="text-gray-600">View and manage lab services</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Stats Overview */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <div className="bg-white rounded-lg shadow-md p-6">
@@ -626,13 +770,15 @@ export default function LabDashboard() {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                       <div
                         onClick={() => setShowAddDoctorModal(true)}
-                        className="bg-white p-6 rounded-lg shadow-md border border-gray-200 flex flex-col items-center justify-center space-y-4 cursor-pointer hover:shadow-lg transition-shadow duration-200 min-h-[200px]"
+                        className="transform transition-all duration-300 hover:scale-105 cursor-pointer"
                       >
-                        <div className="h-16 w-16 bg-teal-100 rounded-full flex items-center justify-center">
-                          <FaPlus className="h-8 w-8 text-teal-600" />
+                        <div className="bg-gradient-to-br from-blue-50 to-cyan-50 p-6 rounded-xl shadow-sm border border-blue-100 h-full group transition-all hover:shadow-md">
+                          <div className="flex items-center justify-center w-16 h-16 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-full mb-4 shadow-md group-hover:shadow-lg transition-all group-hover:scale-110">
+                            <FaPlus className="h-8 w-8" />
+                          </div>
+                          <h3 className="text-lg font-semibold mb-2 text-gray-800">Add New Doctor</h3>
+                          <p className="text-gray-600 text-center">Add a new doctor to your lab</p>
                         </div>
-                        <h3 className="text-xl font-semibold text-gray-800">Add New Doctor</h3>
-                        <p className="text-gray-500 text-center">Add a new doctor to your lab</p>
                       </div>
 
                       {doctors.map((doctor) => (
@@ -684,13 +830,15 @@ export default function LabDashboard() {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                       <div
                         onClick={() => setShowAddServiceModal(true)}
-                        className="bg-white p-6 rounded-lg shadow-md border border-gray-200 flex flex-col items-center justify-center space-y-4 cursor-pointer hover:shadow-lg transition-shadow duration-200 min-h-[200px]"
+                        className="transform transition-all duration-300 hover:scale-105 cursor-pointer"
                       >
-                        <div className="h-16 w-16 bg-teal-100 rounded-full flex items-center justify-center">
-                          <FaPlus className="h-8 w-8 text-teal-600" />
+                        <div className="bg-gradient-to-br from-blue-50 to-cyan-50 p-6 rounded-xl shadow-sm border border-blue-100 h-full group transition-all hover:shadow-md">
+                          <div className="flex items-center justify-center w-16 h-16 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-full mb-4 shadow-md group-hover:shadow-lg transition-all group-hover:scale-110">
+                            <FaPlus className="h-8 w-8" />
+                          </div>
+                          <h3 className="text-lg font-semibold mb-2 text-gray-800">Add New Service</h3>
+                          <p className="text-gray-600 text-center">Add a new service to your lab</p>
                         </div>
-                        <h3 className="text-xl font-semibold text-gray-800">Add New Service</h3>
-                        <p className="text-gray-500 text-center">Add a new service to your lab</p>
                       </div>
 
                       {services.map((service) => (
@@ -1087,6 +1235,195 @@ export default function LabDashboard() {
                 Delete
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Lab Modal */}
+      {showAddLabModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
+          <div className="relative mx-auto p-8 w-full max-w-2xl bg-white rounded-xl shadow-lg">
+            <button
+              onClick={() => setShowAddLabModal(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-500 focus:outline-none"
+            >
+              <span className="sr-only">Close</span>
+              <FaTimes className="h-5 w-5" />
+            </button>
+
+            <div className="text-center mb-6">
+              <div className="mx-auto h-16 w-16 bg-teal-100 rounded-full flex items-center justify-center">
+                <FaHospital className="h-8 w-8 text-teal-600" />
+              </div>
+              <h2 className="mt-4 text-2xl font-semibold text-gray-900">Add New Lab</h2>
+              <p className="mt-2 text-sm text-gray-500">Please fill in the lab information below</p>
+            </div>
+
+            <form onSubmit={handleAddLab} className="mt-8">
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <label htmlFor="labName" className="block text-sm font-medium text-gray-700 mb-1">Lab Name *</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaHospital className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      type="text"
+                      id="labName"
+                      name="name"
+                      value={labFormData.name}
+                      onChange={handleLabInputChange}
+                      className="pl-10 w-full h-12 rounded-md border border-gray-300 bg-gray-50 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                      placeholder="XYZ Diagnostics"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaEnvelope className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      type="email"
+                      id="email"
+                      name="email"
+                      value={labFormData.email}
+                      onChange={handleLabInputChange}
+                      className="pl-10 w-full h-12 rounded-md border border-gray-300 bg-gray-50 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                      placeholder="lab@example.com"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">Phone *</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaPhone className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      type="tel"
+                      id="phone"
+                      name="phone"
+                      value={labFormData.phone}
+                      onChange={handleLabInputChange}
+                      className="pl-10 w-full h-12 rounded-md border border-gray-300 bg-gray-50 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                      placeholder="+91 XXXXX XXXXX"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="mobile" className="block text-sm font-medium text-gray-700 mb-1">Mobile</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaPhone className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      type="tel"
+                      id="mobile"
+                      name="mobile"
+                      value={labFormData.mobile}
+                      onChange={handleLabInputChange}
+                      className="pl-10 w-full h-12 rounded-md border border-gray-300 bg-gray-50 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                      placeholder="+91 XXXXX XXXXX"
+                    />
+                  </div>
+                </div>
+
+                <div className="col-span-2">
+                  <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-1">Street Address</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaMapMarkerAlt className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      type="text"
+                      id="address"
+                      name="address"
+                      value={labFormData.address}
+                      onChange={handleLabInputChange}
+                      className="pl-10 w-full h-12 rounded-md border border-gray-300 bg-gray-50 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                      placeholder="123 Main Street"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="city" className="block text-sm font-medium text-gray-700 mb-1">City</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaMapMarkerAlt className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      type="text"
+                      id="city"
+                      name="city"
+                      value={labFormData.city}
+                      onChange={handleLabInputChange}
+                      className="pl-10 w-full h-12 rounded-md border border-gray-300 bg-gray-50 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                      placeholder="Mumbai"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="state" className="block text-sm font-medium text-gray-700 mb-1">State</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaMapMarkerAlt className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      type="text"
+                      id="state"
+                      name="state"
+                      value={labFormData.state}
+                      onChange={handleLabInputChange}
+                      className="pl-10 w-full h-12 rounded-md border border-gray-300 bg-gray-50 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                      placeholder="Maharashtra"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="zipCode" className="block text-sm font-medium text-gray-700 mb-1">ZIP Code</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaMapMarkerAlt className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      type="text"
+                      id="zipCode"
+                      name="zipCode"
+                      value={labFormData.zipCode}
+                      onChange={handleLabInputChange}
+                      className="pl-10 w-full h-12 rounded-md border border-gray-300 bg-gray-50 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                      placeholder="400001"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-8 flex justify-end space-x-4">
+                <button
+                  type="button"
+                  className="px-6 py-3 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-3 text-sm font-medium text-white bg-teal-600 border border-transparent rounded-md hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
+                >
+                  Add Lab
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

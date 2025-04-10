@@ -64,21 +64,33 @@ export function generateDefaultDoctorSlots(doctorId) {
   // Combine all slots (with lunch break from 1:00 PM to 2:00 PM)
   const allSlots = [...earlyMorningSlots, ...morningSlots, ...afternoonSlots];
 
+  // Use a set to keep track of unique time combinations per day
+  const uniqueSlotKeys = new Set();
+  
   workingDays.forEach((day) => {
     allSlots.forEach((slot, index) => {
-      // First 10 slots (early morning) are admin-only by default
-      const isAdminOnly = index < earlyMorningSlots.length;
-
-      slots.push({
-        doctor_id: doctorId,
-        day,
-        start_time: slot.start_time,
-        end_time: slot.end_time,
-        duration: 15, // Ensure duration is always 15 minutes
-        is_available: true,
-        is_admin_only: isAdminOnly,
-        date: null, // Explicitly set date to null
-      });
+      // Create a unique key for this day and time combination
+      const slotKey = `${day}-${slot.start_time}-${slot.end_time}`;
+      
+      // Only add the slot if we haven't seen this combination before
+      if (!uniqueSlotKeys.has(slotKey)) {
+        // First 10 slots (early morning) are admin-only by default
+        const isAdminOnly = index < earlyMorningSlots.length;
+        
+        slots.push({
+          doctor_id: doctorId,
+          day,
+          start_time: slot.start_time,
+          end_time: slot.end_time,
+          duration: 15, // Ensure duration is always 15 minutes
+          is_available: true,
+          is_admin_only: isAdminOnly,
+          date: null, // Explicitly set date to null
+        });
+        
+        // Add the key to the set to prevent duplicates
+        uniqueSlotKeys.add(slotKey);
+      }
     });
   });
 

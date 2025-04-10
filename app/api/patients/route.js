@@ -5,13 +5,23 @@ import { withAuth } from "../../../middleware/auth";
 import bcrypt from "bcrypt";
 
 // Get patients with optional search by mobile number
-async function getPatients(req) {
+async function getPatients(req, context) {
   try {
     await connectToDatabase();
 
-    // Get search query from URL
-    const url = new URL(req.url);
-    const searchQuery = url.searchParams.get("search");
+    // Initialize searchQuery to null
+    let searchQuery = null;
+
+    // Safely parse URL parameters if URL exists
+    if (req.url) {
+      try {
+        const url = new URL(req.url);
+        searchQuery = url.searchParams.get("search");
+      } catch (urlError) {
+        console.error("Error parsing URL:", urlError);
+        // Continue with null value for searchQuery
+      }
+    }
 
     let query = { role: "patient" };
 
@@ -31,6 +41,15 @@ async function getPatients(req) {
     return NextResponse.json({ patients }, { status: 200 });
   } catch (error) {
     console.error("Get patients error:", error);
+    
+    // Handle specific error types
+    if (error.code === "ERR_INVALID_URL") {
+      return NextResponse.json(
+        { error: "Invalid URL provided. Please check your request." },
+        { status: 400 }
+      );
+    }
+    
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
@@ -39,9 +58,18 @@ async function getPatients(req) {
 }
 
 // Create a new patient
-async function createPatient(req) {
+async function createPatient(req, context) {
   try {
     await connectToDatabase();
+    
+    // Ensure user exists in context
+    if (!context || !context.user) {
+      console.error("User not found in context");
+      return NextResponse.json(
+        { error: "Authentication error. Please log in again." },
+        { status: 401 }
+      );
+    }
 
     const { name, mobile, email, address } = await req.json();
 
@@ -113,3 +141,28 @@ async function createPatient(req) {
 // Apply authentication middleware
 export const GET = withAuth(getPatients);
 export const POST = withAuth(createPatient);
+
+// Add additional error handling around the middleware
+export async function GET_errorHandled(req) {
+  try {
+    return await GET(req);
+  } catch (error) {
+    console.error("Unhandled GET error in patients route:", error);
+    return NextResponse.json(
+      { error: "Internal server error in GET handler" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST_errorHandled(req) {
+  try {
+    return await POST(req);
+  } catch (error) {
+    console.error("Unhandled POST error in patients route:", error);
+    return NextResponse.json(
+      { error: "Internal server error in POST handler" },
+      { status: 500 }
+    );
+  }
+}

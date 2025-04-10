@@ -296,20 +296,18 @@ export default function LabAppointmentsManagement() {
   return (
     <DashboardLayout role="labAdmin">
       <div className="container mx-auto p-4">
-        <div className="mb-8 flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">
-              Manage Appointments
-            </h1>
-            <p className="text-gray-600">
-              View and manage all appointments for your laboratory
-            </p>
-          </div>
+        <h1 className="text-2xl font-bold text-gray-800 mb-2">
+          Appointments Management
+        </h1>
+        <div className="flex justify-between items-center mb-6">
+          <p className="text-gray-600">View and manage all lab appointments</p>
           <button
-            onClick={() => setShowBookModal(true)}
-            className="bg-teal-600 text-white px-6 py-3 rounded-md hover:bg-teal-700 flex items-center gap-2"
+            onClick={() => router.push("/dashboard/lab/appointments/book")}
+            className="inline-flex items-center px-4 py-2 bg-teal-600 border border-transparent 
+              rounded-md text-sm font-medium text-white hover:bg-teal-700 focus:outline-none 
+              focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
           >
-            <FaPlus /> Book Appointment
+            <FaPlus className="mr-2" /> Book New Appointment
           </button>
         </div>
 

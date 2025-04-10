@@ -6,15 +6,29 @@ import { withAuth } from "../../../middleware/auth";
 import { generateDefaultDoctorSlots } from "../../../utils/slotGenerator";
 
 // Get slots with filtering options
-async function getSlots(req) {
+async function getSlots(req, context) {
   try {
     await connectToDatabase();
 
-    const { searchParams } = new URL(req.url);
-    const doctorId = searchParams.get("doctor_id");
-    const day = searchParams.get("day");
-    const isAvailable = searchParams.get("is_available");
-    const isAdminOnly = searchParams.get("is_admin_only");
+    // Initialize parameters to null
+    let doctorId = null;
+    let day = null;
+    let isAvailable = null;
+    let isAdminOnly = null;
+
+    // Safely parse URL parameters if URL exists
+    if (req.url) {
+      try {
+        const { searchParams } = new URL(req.url);
+        doctorId = searchParams.get("doctor_id");
+        day = searchParams.get("day");
+        isAvailable = searchParams.get("is_available");
+        isAdminOnly = searchParams.get("is_admin_only");
+      } catch (urlError) {
+        console.error("Error parsing URL:", urlError);
+        // Continue with null values for the parameters
+      }
+    }
 
     let query = {};
 
@@ -41,6 +55,15 @@ async function getSlots(req) {
     return NextResponse.json({ slots }, { status: 200 });
   } catch (error) {
     console.error("Get slots error:", error);
+    
+    // Handle specific error types
+    if (error.code === "ERR_INVALID_URL") {
+      return NextResponse.json(
+        { error: "Invalid URL provided. Please check your request." },
+        { status: 400 }
+      );
+    }
+    
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
@@ -49,10 +72,32 @@ async function getSlots(req) {
 }
 
 // Generate default slots for a doctor
-async function generateSlots(req) {
+async function generateSlots(req, context) {
   try {
     await connectToDatabase();
-    const { doctor_id } = await req.json();
+    
+    // Ensure user exists in context for authorization
+    if (!context || !context.user) {
+      console.error("User not found in context");
+      return NextResponse.json(
+        { error: "Authentication error. Please log in again." },
+        { status: 401 }
+      );
+    }
+    
+    let requestData;
+    try {
+      // Try parsing the request body
+      requestData = await req.json();
+    } catch (parseError) {
+      console.error("Error parsing request body:", parseError);
+      return NextResponse.json(
+        { error: "Invalid request body" },
+        { status: 400 }
+      );
+    }
+    
+    const { doctor_id } = requestData;
 
     if (!doctor_id) {
       return NextResponse.json(
@@ -102,10 +147,32 @@ async function generateSlots(req) {
 }
 
 // Update multiple slots
-async function updateSlots(req) {
+async function updateSlots(req, context) {
   try {
     await connectToDatabase();
-    const { slots } = await req.json();
+    
+    // Ensure user exists in context for authorization
+    if (!context || !context.user) {
+      console.error("User not found in context");
+      return NextResponse.json(
+        { error: "Authentication error. Please log in again." },
+        { status: 401 }
+      );
+    }
+    
+    let requestData;
+    try {
+      // Try parsing the request body
+      requestData = await req.json();
+    } catch (parseError) {
+      console.error("Error parsing request body:", parseError);
+      return NextResponse.json(
+        { error: "Invalid request body" },
+        { status: 400 }
+      );
+    }
+    
+    const { slots } = requestData;
 
     if (!slots || !Array.isArray(slots) || slots.length === 0) {
       return NextResponse.json(
@@ -154,6 +221,43 @@ async function updateSlots(req) {
 }
 
 // Apply authentication middleware
-export const GET = withAuth(getSlots, ["admin", "doctor", "patient"]);
-export const POST = withAuth(generateSlots, ["admin"]);
-export const PUT = withAuth(updateSlots, ["admin"]);
+export const GET = (req, context) => withAuth(getSlots, ["admin", "doctor", "patient"])(req, context);
+export const POST = (req, context) => withAuth(generateSlots, ["admin"])(req, context);
+export const PUT = (req, context) => withAuth(updateSlots, ["admin"])(req, context);
+
+// Add additional error handling around the middleware
+export async function GET_errorHandled(req) {
+  try {
+    return await GET(req);
+  } catch (error) {
+    console.error("Unhandled GET error in slots route:", error);
+    return NextResponse.json(
+      { error: "Internal server error in GET handler" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST_errorHandled(req) {
+  try {
+    return await POST(req);
+  } catch (error) {
+    console.error("Unhandled POST error in slots route:", error);
+    return NextResponse.json(
+      { error: "Internal server error in POST handler" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT_errorHandled(req) {
+  try {
+    return await PUT(req);
+  } catch (error) {
+    console.error("Unhandled PUT error in slots route:", error);
+    return NextResponse.json(
+      { error: "Internal server error in PUT handler" },
+      { status: 500 }
+    );
+  }
+}

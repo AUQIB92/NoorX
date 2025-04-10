@@ -5,11 +5,12 @@ import Appointment from "../../../../../models/Appointment";
 import { withAuth } from "../../../../../middleware/auth";
 
 // Get doctor slots for a specific date
-async function getDoctorSlots(req, { params }) {
+async function getDoctorSlots(req, context) {
   try {
     await connectToDatabase();
 
-    const doctorId = params?.id;
+    // Get doctor ID from params
+    const doctorId = context?.params?.id;
     if (!doctorId) {
       return NextResponse.json(
         { error: "Doctor ID is required" },
@@ -17,8 +18,19 @@ async function getDoctorSlots(req, { params }) {
       );
     }
 
-    const { searchParams } = new URL(req.url);
-    const dateParam = searchParams.get("date");
+    // Initialize dateParam to null
+    let dateParam = null;
+
+    // Safely parse URL parameters if URL exists
+    if (req.url) {
+      try {
+        const { searchParams } = new URL(req.url);
+        dateParam = searchParams.get("date");
+      } catch (urlError) {
+        console.error("Error parsing URL:", urlError);
+        // Continue with null value for dateParam
+      }
+    }
 
     let query = { doctor_id: doctorId };
 
@@ -150,6 +162,15 @@ async function getDoctorSlots(req, { params }) {
     return NextResponse.json({ slots }, { status: 200 });
   } catch (error) {
     console.error("Get doctor slots error:", error);
+    
+    // Handle specific error types
+    if (error.code === "ERR_INVALID_URL") {
+      return NextResponse.json(
+        { error: "Invalid URL provided. Please check your request." },
+        { status: 400 }
+      );
+    }
+    
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
@@ -159,3 +180,16 @@ async function getDoctorSlots(req, { params }) {
 
 // Export the handler function with authentication middleware
 export const GET = withAuth(getDoctorSlots);
+
+// Add additional error handling wrapper
+export async function GET_errorHandled(req) {
+  try {
+    return await GET(req);
+  } catch (error) {
+    console.error("Unhandled GET error in doctor slots route:", error);
+    return NextResponse.json(
+      { error: "Internal server error in GET handler" },
+      { status: 500 }
+    );
+  }
+}

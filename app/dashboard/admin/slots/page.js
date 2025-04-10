@@ -34,6 +34,7 @@ import {
   MdOutlineWbTwilight,
   MdNightsStay,
 } from "react-icons/md";
+import SlotCalendar from "../../../../components/SlotCalendar";
 
 export default function SlotManagementPage() {
   const router = useRouter();
@@ -1311,190 +1312,16 @@ export default function SlotManagementPage() {
 
               {/* Day View */}
               {viewMode === "day" && (
-                <div className="space-y-6">
-                  {days.map((day) => {
-                    const daySlots = slotsByDay[day] || [];
-                    const filteredDaySlots = applySearchFilter(
-                      applyTimeFilter(daySlots)
-                    );
-
-                    if (selectedDay !== "All" && day !== selectedDay)
-                      return null;
-                    if (filteredDaySlots.length === 0) return null;
-
-                    return (
-                      <div
-                        key={day}
-                        className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden"
-                      >
-                        <div
-                          className="bg-gray-50 px-6 py-4 flex justify-between items-center cursor-pointer"
-                          onClick={() =>
-                            setExpandedDay(expandedDay === day ? null : day)
-                          }
-                        >
-                          <div className="flex items-center">
-                            <FaCalendarDay className="text-blue-500 mr-2" />
-                            <h3 className="text-lg font-medium text-gray-900">
-                              {day}
-                            </h3>
-                            <span className="ml-3 text-sm text-gray-500">
-                              {filteredDaySlots.length} slot
-                              {filteredDaySlots.length !== 1 ? "s" : ""}
-                            </span>
-                          </div>
-                          <div className="flex items-center space-x-4">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                selectAllSlotsInDay(day);
-                              }}
-                              className="text-sm text-blue-600 hover:text-blue-800"
-                            >
-                              {daySlots.every((slot) =>
-                                selectedSlots.includes(slot._id)
-                              )
-                                ? "Deselect All"
-                                : "Select All"}
-                            </button>
-                            <button
-                              className="text-gray-400"
-                              aria-label="Expand"
-                            >
-                              {expandedDay === day ? "↑" : "↓"}
-                            </button>
-                          </div>
-                        </div>
-
-                        {(expandedDay === day || expandedDay === null) && (
-                          <div className="px-6 py-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                              {filteredDaySlots.map((slot) => (
-                                <div
-                                  key={slot._id}
-                                  className={`p-4 rounded-lg border ${
-                                    selectedSlots.includes(slot._id)
-                                      ? "border-blue-500 bg-blue-50"
-                                      : "border-gray-200 hover:border-blue-300"
-                                  } transition-colors duration-150 ease-in-out`}
-                                >
-                                  <div className="flex justify-between items-start mb-2">
-                                    <div className="flex items-center">
-                                      <input
-                                        type="checkbox"
-                                        className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                                        checked={selectedSlots.includes(
-                                          slot._id
-                                        )}
-                                        onChange={() =>
-                                          toggleSlotSelection(slot._id)
-                                        }
-                                      />
-                                      <span className="ml-2 font-medium text-gray-900">
-                                        {formatTime(slot.start_time)} -{" "}
-                                        {formatTime(slot.end_time)}
-                                      </span>
-                                    </div>
-                                    <div className="flex space-x-1">
-                                      <span
-                                        className={`px-2 py-1 inline-flex text-xs leading-4 font-semibold rounded-full ${
-                                          slot.is_available
-                                            ? "bg-green-100 text-green-800"
-                                            : "bg-yellow-100 text-yellow-800"
-                                        }`}
-                                      >
-                                        {slot.is_available
-                                          ? "Available"
-                                          : "Disabled"}
-                                      </span>
-                                      {slot.is_admin_only && (
-                                        <span className="px-2 py-1 inline-flex text-xs leading-4 font-semibold rounded-full bg-purple-100 text-purple-800">
-                                          Admin
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-
-                                  <div className="flex justify-between items-center">
-                                    <div className="text-sm text-gray-500">
-                                      {slot.duration} mins
-                                    </div>
-                                    <div className="flex space-x-2">
-                                      <button
-                                        onClick={() =>
-                                          toggleAvailability(
-                                            slot._id,
-                                            !slot.is_available
-                                          )
-                                        }
-                                        className="text-gray-400 hover:text-gray-600"
-                                        title={
-                                          slot.is_available
-                                            ? "Disable"
-                                            : "Enable"
-                                        }
-                                      >
-                                        {slot.is_available ? (
-                                          <FaEyeSlash />
-                                        ) : (
-                                          <FaEye />
-                                        )}
-                                      </button>
-                                      <button
-                                        onClick={() =>
-                                          toggleAdminOnly(
-                                            slot._id,
-                                            !slot.is_admin_only
-                                          )
-                                        }
-                                        className="text-gray-400 hover:text-gray-600"
-                                        title={
-                                          slot.is_admin_only
-                                            ? "Make Public"
-                                            : "Make Admin Only"
-                                        }
-                                      >
-                                        {slot.is_admin_only ? (
-                                          <FaEye />
-                                        ) : (
-                                          <FaEyeSlash />
-                                        )}
-                                      </button>
-                                      <button
-                                        onClick={() => editSlot(slot)}
-                                        className="text-blue-400 hover:text-blue-600"
-                                        title="Edit"
-                                      >
-                                        <FaEdit />
-                                      </button>
-                                      <button
-                                        onClick={() => duplicateSlot(slot)}
-                                        className="text-green-400 hover:text-green-600"
-                                        title="Duplicate"
-                                      >
-                                        <FaCopy />
-                                      </button>
-                                      <button
-                                        onClick={() => {
+                <SlotCalendar 
+                  slots={fullFilteredSlots} 
+                  onSlotSelect={(slot) => toggleSlotSelection(slot._id)}
+                  selectedSlot={selectedSlots.length === 1 ? slots.find(s => s._id === selectedSlots[0]) : null}
+                  onEditSlot={editSlot}
+                  onDeleteSlot={(slot) => {
                                           setSlotToDelete(slot._id);
                                           setShowDeleteConfirm(true);
                                         }}
-                                        className="text-red-400 hover:text-red-600"
-                                        title="Delete"
-                                      >
-                                        <FaTrash />
-                                      </button>
-                                    </div>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                />
               )}
 
               {/* Timeline View */}
@@ -1672,9 +1499,7 @@ export default function SlotManagementPage() {
                                               <FaEdit />
                                             </button>
                                             <button
-                                              onClick={() =>
-                                                duplicateSlot(slot)
-                                              }
+                                              onClick={() => duplicateSlot(slot)}
                                               className="text-green-400 hover:text-green-600"
                                               title="Duplicate"
                                             >

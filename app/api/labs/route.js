@@ -5,17 +5,30 @@ import User from "../../../models/User";
 import { withAuth } from "../../../middleware/auth";
 
 // GET /api/labs - Get all labs
-async function getLabs(req) {
+async function getLabs(req, context) {
   try {
     await connectToDatabase();
 
-    // Get query parameters
-    const { searchParams } = new URL(req.url);
-    const name = searchParams.get("name");
-    const email = searchParams.get("email");
-    const city = searchParams.get("city");
-    const state = searchParams.get("state");
-    const isActive = searchParams.get("isActive");
+    // Get query parameters with safe URL parsing
+    let name = null;
+    let email = null;
+    let city = null;
+    let state = null;
+    let isActive = null;
+
+    try {
+      if (req.url) {
+        const { searchParams } = new URL(req.url);
+        name = searchParams.get("name");
+        email = searchParams.get("email");
+        city = searchParams.get("city");
+        state = searchParams.get("state");
+        isActive = searchParams.get("isActive");
+      }
+    } catch (error) {
+      console.error("Error parsing URL:", error);
+      // Continue with null values for parameters
+    }
 
     // Build query
     const query = {};
@@ -75,7 +88,7 @@ async function getLabs(req) {
 }
 
 // POST /api/labs - Create a new lab
-async function createLab(req) {
+async function createLab(req, context) {
   try {
     await connectToDatabase();
 
@@ -149,5 +162,5 @@ async function createLab(req) {
 }
 
 // Apply authentication middleware
-export const GET = withAuth(getLabs, ["admin", "labAdmin"]);
-export const POST = withAuth(createLab, ["admin"]);
+export const GET = (req, context) => withAuth(getLabs, ["admin", "labAdmin"])(req, context);
+export const POST = (req, context) => withAuth(createLab, ["admin"])(req, context);

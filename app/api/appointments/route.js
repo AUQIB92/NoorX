@@ -11,13 +11,13 @@ import { sendBookingConfirmation } from "../../../lib/twilio";
 import { sendBookingConfirmationEmail } from "../../../lib/emailService";
 
 // Get appointments based on user role
-async function getAppointments(req) {
+async function getAppointments(req, context) {
   try {
     console.log(
       "getAppointments called with user:",
-      req.user?.id,
+      context?.user?.id,
       "role:",
-      req.user?.role
+      context?.user?.role
     );
 
     // Try to connect to the database with retries
@@ -32,11 +32,24 @@ async function getAppointments(req) {
       );
     }
 
-    const { user } = req;
-    const { searchParams } = new URL(req.url);
-    const status = searchParams.get("status");
-    const doctorId = searchParams.get("doctor");
-    const date = searchParams.get("date");
+    const { user } = context;
+    
+    // Check if req.url is defined before creating URL object
+    let status = null;
+    let doctorId = null;
+    let date = null;
+    
+    if (req.url) {
+      try {
+        const { searchParams } = new URL(req.url);
+        status = searchParams.get("status");
+        doctorId = searchParams.get("doctor");
+        date = searchParams.get("date");
+      } catch (urlError) {
+        console.error("Error parsing URL:", urlError);
+        // Continue with null values for the parameters
+      }
+    }
 
     let query = {};
 
@@ -110,6 +123,11 @@ async function getAppointments(req) {
         { error: "Request timed out. Please try again." },
         { status: 504 }
       );
+    } else if (error.code === "ERR_INVALID_URL") {
+      return NextResponse.json(
+        { error: "Invalid URL provided. Please check your request." },
+        { status: 400 }
+      );
     }
 
     return NextResponse.json(
@@ -120,11 +138,20 @@ async function getAppointments(req) {
 }
 
 // Book a new appointment
-async function createAppointment(req) {
+async function createAppointment(req, context) {
   try {
     await connectToDatabase();
 
-    const { user } = req;
+    // Ensure context and user exist
+    if (!context || !context.user) {
+      console.error("User not found in context");
+      return NextResponse.json(
+        { error: "Authentication error. Please log in again." },
+        { status: 401 }
+      );
+    }
+
+    const { user } = context;
     const {
       doctor_id,
       service_id,
@@ -211,16 +238,35 @@ async function createAppointment(req) {
     const dayOfWeek = days[appointmentDate.getDay()];
 
     // Parse the time to get hours and minutes
-    const [hours, minutes] = time
-      .match(/(\d+):(\d+)\s*([AP]M)/i)
-      .slice(1, 3)
-      .map(Number);
-    const isPM = time.toUpperCase().includes("PM");
-
-    // Convert to 24-hour format
-    let hour24 = hours;
-    if (isPM && hours < 12) hour24 += 12;
-    if (!isPM && hours === 12) hour24 = 0;
+    let hour24, minutes;
+    
+    // Check if time is already in 24h format (HH:MM)
+    if (/^\d{1,2}:\d{2}$/.test(time)) {
+      // Already in 24h format
+      const [hours, mins] = time.split(':').map(Number);
+      hour24 = hours;
+      minutes = mins;
+    } else {
+      // Try to parse 12h format (e.g., "3:30 PM")
+      const timeMatch = time.match(/(\d+):(\d+)\s*([AP]M)?/i);
+      
+      if (timeMatch) {
+        const hours = Number(timeMatch[1]);
+        minutes = Number(timeMatch[2]);
+        const isPM = timeMatch[3] && timeMatch[3].toUpperCase() === 'PM';
+        
+        // Convert to 24-hour format
+        hour24 = hours;
+        if (isPM && hours < 12) hour24 += 12;
+        if (!isPM && hours === 12) hour24 = 0;
+      } else {
+        // Invalid time format
+        return NextResponse.json(
+          { error: "Invalid time format. Please use HH:MM or H:MM AM/PM format" },
+          { status: 400 }
+        );
+      }
+    }
 
     // Format as HH:MM for database comparison
     const timeFormat24 = `${hour24.toString().padStart(2, "0")}:${minutes
@@ -313,9 +359,9 @@ async function createAppointment(req) {
           ? null
           : new Date(),
       // Add Razorpay payment details if provided
-      payment_id: payment_id || null,
-      razorpay_order_id: razorpay_order_id || null,
-      razorpay_signature: razorpay_signature || null,
+      payment_id: payment_method === "cash" ? "N/A" : (payment_id || null),
+      razorpay_order_id: payment_method === "cash" ? "N/A" : (razorpay_order_id || null),
+      razorpay_signature: payment_method === "cash" ? "N/A" : (razorpay_signature || null),
     });
 
     await appointment.save();
@@ -463,3 +509,28 @@ async function createAppointment(req) {
 // Export the handler functions with authentication middleware
 export const GET = withAuth(getAppointments);
 export const POST = withAuth(createAppointment);
+
+// Add additional error handling around the middleware
+export async function GET_errorHandled(req) {
+  try {
+    return await GET(req);
+  } catch (error) {
+    console.error("Unhandled GET error:", error);
+    return NextResponse.json(
+      { error: "Internal server error in GET handler" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST_errorHandled(req) {
+  try {
+    return await POST(req);
+  } catch (error) {
+    console.error("Unhandled POST error:", error);
+    return NextResponse.json(
+      { error: "Internal server error in POST handler" },
+      { status: 500 }
+    );
+  }
+}

@@ -577,11 +577,16 @@ export default function BookAppointment() {
 
     setIsSubmitting(true);
     try {
+      // Check for token in localStorage
       const token = localStorage.getItem("token");
+      
+      // If token doesn't exist, show an error and don't proceed
       if (!token) {
         console.error("Authentication token not found in localStorage");
         toast.error("Authentication token not found. Please log in again.");
         setIsSubmitting(false);
+        // Optionally redirect to login page
+        // router.push("/auth/login");
         return;
       }
 
@@ -623,14 +628,32 @@ export default function BookAppointment() {
               ...appointmentData,
               payment_method: "cash",
             }),
+            // Add timeout to prevent hanging requests
+            signal: AbortSignal.timeout(15000), // 15 second timeout
           });
 
           console.log("Appointment API response status:", res.status);
-          const data = await res.json();
-          console.log(
-            "Cash payment appointment response:",
-            JSON.stringify(data)
-          );
+          let data;
+          try {
+            data = await res.json();
+            console.log(
+              "Cash payment appointment response:",
+              JSON.stringify(data)
+            );
+          } catch (parseError) {
+            console.error("Error parsing API response:", parseError);
+            throw new Error("Failed to parse server response");
+          }
+
+          // Handle authentication errors
+          if (res.status === 401) {
+            console.error("Authentication failed:", data?.error);
+            toast.error("Your session has expired. Please log in again.");
+            setIsSubmitting(false);
+            // Optionally redirect to login page
+            // router.push("/auth/login");
+            return;
+          }
 
           if (res.ok) {
             toast.success("Appointment booked successfully");

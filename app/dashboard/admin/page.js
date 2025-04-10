@@ -96,6 +96,52 @@ export default function AdminDashboard() {
           </Link>
         </div>
 
+        {/* Quick Actions */}
+        <div className="bg-gradient-to-br from-white to-gray-50 rounded-lg shadow-md p-6 mb-8">
+          <h2 className="text-xl font-semibold mb-6 text-gray-800">Quick Actions</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <Link href="/dashboard/admin/doctors/add" className="transform transition-all duration-300 hover:scale-105">
+              <div className="bg-gradient-to-br from-blue-50 to-cyan-50 p-6 rounded-xl shadow-sm border border-blue-100 h-full group transition-all hover:shadow-md">
+                <div className="flex items-center justify-center w-16 h-16 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-full mb-4 shadow-md group-hover:shadow-lg transition-all group-hover:scale-110">
+                  <FaUserMd size={24} />
+                </div>
+                <h3 className="text-lg font-semibold mb-2 text-gray-800">Add Doctor</h3>
+                <p className="text-gray-600">Add a new doctor to the system</p>
+              </div>
+            </Link>
+
+            <Link href="/dashboard/admin/labs" className="transform transition-all duration-300 hover:scale-105">
+              <div className="bg-gradient-to-br from-green-50 to-teal-50 p-6 rounded-xl shadow-sm border border-green-100 h-full group transition-all hover:shadow-md">
+                <div className="flex items-center justify-center w-16 h-16 bg-gradient-to-r from-green-500 to-teal-500 text-white rounded-full mb-4 shadow-md group-hover:shadow-lg transition-all group-hover:scale-110">
+                  <FaHospital size={24} />
+                </div>
+                <h3 className="text-lg font-semibold mb-2 text-gray-800">Manage Labs</h3>
+                <p className="text-gray-600">Add and manage diagnostic labs</p>
+              </div>
+            </Link>
+
+            <Link href="/dashboard/admin/doctors" className="transform transition-all duration-300 hover:scale-105">
+              <div className="bg-gradient-to-br from-purple-50 to-indigo-50 p-6 rounded-xl shadow-sm border border-purple-100 h-full group transition-all hover:shadow-md">
+                <div className="flex items-center justify-center w-16 h-16 bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded-full mb-4 shadow-md group-hover:shadow-lg transition-all group-hover:scale-110">
+                  <FaUserMd size={24} />
+                </div>
+                <h3 className="text-lg font-semibold mb-2 text-gray-800">Manage Doctors</h3>
+                <p className="text-gray-600">View and manage all doctors</p>
+              </div>
+            </Link>
+
+            <Link href="/dashboard/admin/slots" className="transform transition-all duration-300 hover:scale-105">
+              <div className="bg-gradient-to-br from-orange-50 to-amber-50 p-6 rounded-xl shadow-sm border border-orange-100 h-full group transition-all hover:shadow-md">
+                <div className="flex items-center justify-center w-16 h-16 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-full mb-4 shadow-md group-hover:shadow-lg transition-all group-hover:scale-110">
+                  <FaClock size={24} />
+                </div>
+                <h3 className="text-lg font-semibold mb-2 text-gray-800">Manage Slots</h3>
+                <p className="text-gray-600">Configure doctor appointment slots</p>
+              </div>
+            </Link>
+          </div>
+        </div>
+
         {/* Main Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <DashboardCard
@@ -242,54 +288,6 @@ export default function AdminDashboard() {
                 </div>
               ))}
             </div>
-          </div>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Link href="/dashboard/admin/doctors/add">
-              <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
-                <div className="flex items-center justify-center w-12 h-12 bg-teal-100 text-teal-600 rounded-full mb-4">
-                  <FaUserMd size={24} />
-                </div>
-                <h3 className="text-lg font-semibold mb-2">Add Doctor</h3>
-                <p className="text-gray-600">Add a new doctor to the system</p>
-              </div>
-            </Link>
-
-            <Link href="/dashboard/admin/labs">
-              <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
-                <div className="flex items-center justify-center w-12 h-12 bg-teal-100 text-teal-600 rounded-full mb-4">
-                  <FaHospital size={24} />
-                </div>
-                <h3 className="text-lg font-semibold mb-2">Manage Labs</h3>
-                <p className="text-gray-600">Add and manage diagnostic labs</p>
-              </div>
-            </Link>
-
-            <Link href="/dashboard/admin/doctors">
-              <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
-                <div className="flex items-center justify-center w-12 h-12 bg-teal-100 text-teal-600 rounded-full mb-4">
-                  <FaUserMd size={24} />
-                </div>
-                <h3 className="text-lg font-semibold mb-2">Manage Doctors</h3>
-                <p className="text-gray-600">View and manage all doctors</p>
-              </div>
-            </Link>
-
-            <Link href="/dashboard/admin/slots">
-              <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
-                <div className="flex items-center justify-center w-12 h-12 bg-teal-100 text-teal-600 rounded-full mb-4">
-                  <FaClock size={24} />
-                </div>
-                <h3 className="text-lg font-semibold mb-2">Manage Slots</h3>
-                <p className="text-gray-600">
-                  Configure doctor appointment slots
-                </p>
-              </div>
-            </Link>
           </div>
         </div>
       </div>
