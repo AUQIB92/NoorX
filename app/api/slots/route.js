@@ -5,6 +5,44 @@ import User from "../../../models/User";
 import { withAuth } from "../../../middleware/auth";
 import { generateDefaultDoctorSlots } from "../../../utils/slotGenerator";
 
+// Helper function for standardized error responses
+const errorResponse = (message, status = 500, details = null) => {
+  console.error(`API Error [${status}]:`, message, details || '');
+  return NextResponse.json(
+    { success: false, error: message, ...(details ? { details } : {}) },
+    { status }
+  );
+};
+
+// Helper function for standardized success responses
+const successResponse = (data, message = null, status = 200) => {
+  return NextResponse.json(
+    { 
+      success: true, 
+      ...(message ? { message } : {}),
+      ...data
+    },
+    { status }
+  );
+};
+
+// Helper function to validate request
+const validateRequest = async (req, context) => {
+  if (!context || !context.user) {
+    return { error: "Authentication error. Please log in again.", status: 401 };
+  }
+  
+  let requestData;
+  try {
+    // Try parsing the request body
+    requestData = await req.json();
+  } catch (parseError) {
+    return { error: "Invalid request body", status: 400 };
+  }
+  
+  return { requestData };
+};
+
 // Get slots with filtering options
 async function getSlots(req, context) {
   try {
@@ -52,22 +90,9 @@ async function getSlots(req, context) {
       .populate("doctor_id", "name specialization")
       .sort({ day: 1, start_time: 1 });
 
-    return NextResponse.json({ slots }, { status: 200 });
+    return successResponse({ slots });
   } catch (error) {
-    console.error("Get slots error:", error);
-    
-    // Handle specific error types
-    if (error.code === "ERR_INVALID_URL") {
-      return NextResponse.json(
-        { error: "Invalid URL provided. Please check your request." },
-        { status: 400 }
-      );
-    }
-    
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return errorResponse("Failed to fetch slots", 500, error.message);
   }
 }
 
@@ -76,52 +101,28 @@ async function generateSlots(req, context) {
   try {
     await connectToDatabase();
     
-    // Ensure user exists in context for authorization
-    if (!context || !context.user) {
-      console.error("User not found in context");
-      return NextResponse.json(
-        { error: "Authentication error. Please log in again." },
-        { status: 401 }
-      );
+    // Validate request
+    const validation = await validateRequest(req, context);
+    if (validation.error) {
+      return errorResponse(validation.error, validation.status);
     }
     
-    let requestData;
-    try {
-      // Try parsing the request body
-      requestData = await req.json();
-    } catch (parseError) {
-      console.error("Error parsing request body:", parseError);
-      return NextResponse.json(
-        { error: "Invalid request body" },
-        { status: 400 }
-      );
-    }
-    
-    const { doctor_id } = requestData;
+    const { doctor_id } = validation.requestData;
 
     if (!doctor_id) {
-      return NextResponse.json(
-        { error: "Doctor ID is required" },
-        { status: 400 }
-      );
+      return errorResponse("Doctor ID is required", 400);
     }
 
     // Check if doctor exists
     const doctor = await User.findOne({ _id: doctor_id, role: "doctor" });
     if (!doctor) {
-      return NextResponse.json({ error: "Doctor not found" }, { status: 404 });
+      return errorResponse("Doctor not found", 404);
     }
 
     // Check if slots already exist for this doctor
     const existingSlots = await DoctorSlot.find({ doctor_id });
     if (existingSlots.length > 0) {
-      return NextResponse.json(
-        {
-          message: "Slots already exist for this doctor",
-          count: existingSlots.length,
-        },
-        { status: 200 }
-      );
+      return successResponse({ count: existingSlots.length }, "Slots already exist for this doctor");
     }
 
     // Generate default slots
@@ -130,19 +131,13 @@ async function generateSlots(req, context) {
     // Insert slots into database
     await DoctorSlot.insertMany(slots);
 
-    return NextResponse.json(
-      {
-        message: "Default slots generated successfully",
-        count: slots.length,
-      },
-      { status: 201 }
+    return successResponse(
+      { count: slots.length },
+      "Default slots generated successfully",
+      201
     );
   } catch (error) {
-    console.error("Generate slots error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return errorResponse("Failed to generate slots", 500, error.message);
   }
 }
 
@@ -151,34 +146,16 @@ async function updateSlots(req, context) {
   try {
     await connectToDatabase();
     
-    // Ensure user exists in context for authorization
-    if (!context || !context.user) {
-      console.error("User not found in context");
-      return NextResponse.json(
-        { error: "Authentication error. Please log in again." },
-        { status: 401 }
-      );
+    // Validate request
+    const validation = await validateRequest(req, context);
+    if (validation.error) {
+      return errorResponse(validation.error, validation.status);
     }
     
-    let requestData;
-    try {
-      // Try parsing the request body
-      requestData = await req.json();
-    } catch (parseError) {
-      console.error("Error parsing request body:", parseError);
-      return NextResponse.json(
-        { error: "Invalid request body" },
-        { status: 400 }
-      );
-    }
-    
-    const { slots } = requestData;
+    const { slots } = validation.requestData;
 
     if (!slots || !Array.isArray(slots) || slots.length === 0) {
-      return NextResponse.json(
-        { error: "Valid slots array is required" },
-        { status: 400 }
-      );
+      return errorResponse("Valid slots array is required", 400);
     }
 
     const updatePromises = slots.map(async (slot) => {
@@ -206,58 +183,13 @@ async function updateSlots(req, context) {
     });
 
     const results = await Promise.all(updatePromises);
-
-    return NextResponse.json(
-      { message: "Slots updated", results },
-      { status: 200 }
-    );
+    return successResponse({ results }, "Slots updated");
   } catch (error) {
-    console.error("Update slots error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return errorResponse("Failed to update slots", 500, error.message);
   }
 }
 
-// Apply authentication middleware
-export const GET = (req, context) => withAuth(getSlots, ["admin", "doctor", "patient"])(req, context);
+// Apply authentication middleware with appropriate role permissions
+export const GET = (req, context) => withAuth(getSlots, ["admin", "doctor", "patient", "labAdmin"])(req, context);
 export const POST = (req, context) => withAuth(generateSlots, ["admin", "labAdmin"])(req, context);
-export const PUT = (req, context) => withAuth(updateSlots, ["admin"])(req, context);
-
-// Add additional error handling around the middleware
-export async function GET_errorHandled(req) {
-  try {
-    return await GET(req);
-  } catch (error) {
-    console.error("Unhandled GET error in slots route:", error);
-    return NextResponse.json(
-      { error: "Internal server error in GET handler" },
-      { status: 500 }
-    );
-  }
-}
-
-export async function POST_errorHandled(req) {
-  try {
-    return await POST(req);
-  } catch (error) {
-    console.error("Unhandled POST error in slots route:", error);
-    return NextResponse.json(
-      { error: "Internal server error in POST handler" },
-      { status: 500 }
-    );
-  }
-}
-
-export async function PUT_errorHandled(req) {
-  try {
-    return await PUT(req);
-  } catch (error) {
-    console.error("Unhandled PUT error in slots route:", error);
-    return NextResponse.json(
-      { error: "Internal server error in PUT handler" },
-      { status: 500 }
-    );
-  }
-}
+export const PUT = (req, context) => withAuth(updateSlots, ["admin", "labAdmin"])(req, context);

@@ -34,6 +34,23 @@ function LoadingSpinner() {
   );
 }
 
+// Statistics card component to standardize the look
+function StatCard({ icon: Icon, title, value, color }) {
+  return (
+    <div className="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition-all duration-300 border border-gray-100">
+      <div className="flex items-center">
+        <div className={`p-3 rounded-lg ${color}`}>
+          <Icon className="h-6 w-6 text-white" />
+        </div>
+        <div className="ml-4">
+          <p className="text-sm font-medium text-gray-500">{title}</p>
+          <p className="text-2xl font-bold text-gray-800">{value}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function LabDashboard() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("overview");
@@ -542,216 +559,140 @@ export default function LabDashboard() {
 
   return (
     <DashboardLayout role="labAdmin">
-      <div className="container mx-auto p-4">
-        {/* Header Section */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">
-            {labData?.name || "Lab Dashboard"}
-          </h1>
-          <p className="text-gray-600">
-            Manage your laboratory, doctors, and services
-          </p>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="bg-gradient-to-br from-white to-gray-50 rounded-lg shadow-md p-6 mb-8">
-          <h2 className="text-xl font-semibold mb-6 text-gray-800">Quick Actions</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div 
-              onClick={() => setShowAddDoctorModal(true)}
-              className="transform transition-all duration-300 hover:scale-105 cursor-pointer"
-            >
-              <div className="bg-gradient-to-br from-blue-50 to-cyan-50 p-6 rounded-xl shadow-sm border border-blue-100 h-full group transition-all hover:shadow-md">
-                <div className="flex items-center justify-center w-16 h-16 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-full mb-4 shadow-md group-hover:shadow-lg transition-all group-hover:scale-110">
-                  <FaPlus className="h-8 w-8" />
-                </div>
-                <h3 className="text-lg font-semibold mb-2 text-gray-800">Add New Doctor</h3>
-                <p className="text-gray-600 text-center">Add a new doctor to your lab</p>
-              </div>
-            </div>
-
-            <div 
-              onClick={() => setShowAddServiceModal(true)}
-              className="transform transition-all duration-300 hover:scale-105 cursor-pointer"
-            >
-              <div className="bg-gradient-to-br from-green-50 to-teal-50 p-6 rounded-xl shadow-sm border border-green-100 h-full group transition-all hover:shadow-md">
-                <div className="flex items-center justify-center w-16 h-16 bg-gradient-to-r from-green-500 to-teal-500 text-white rounded-full mb-4 shadow-md group-hover:shadow-lg transition-all group-hover:scale-110">
-                  <FaPlus className="h-8 w-8" />
-                </div>
-                <h3 className="text-lg font-semibold mb-2 text-gray-800">Add Service</h3>
-                <p className="text-gray-600">Add a new diagnostic service</p>
-              </div>
-            </div>
-
-            <div 
+      <ToastContainer position="top-right" autoClose={3000} />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">{labData?.name || "Lab Dashboard"}</h1>
+            <p className="mt-1 text-sm text-gray-500">
+              Manage your lab, doctors, services and appointments
+            </p>
+          </div>
+          <div className="mt-4 md:mt-0 flex space-x-3">
+            <button
               onClick={() => setShowAddLabModal(true)}
-              className="transform transition-all duration-300 hover:scale-105 cursor-pointer"
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
             >
-              <div className="bg-gradient-to-br from-amber-50 to-yellow-50 p-6 rounded-xl shadow-sm border border-amber-100 h-full group transition-all hover:shadow-md">
-                <div className="flex items-center justify-center w-16 h-16 bg-gradient-to-r from-amber-400 to-yellow-500 text-white rounded-full mb-4 shadow-md group-hover:shadow-lg transition-all group-hover:scale-110">
-                  <FaHospital className="h-8 w-8" />
-                </div>
-                <h3 className="text-lg font-semibold mb-2 text-gray-800">Add New Lab</h3>
-                <p className="text-gray-600">Add a new diagnostic laboratory</p>
-              </div>
-            </div>
-
-            <div 
-              onClick={() => setActiveTab("doctors")}
-              className="transform transition-all duration-300 hover:scale-105 cursor-pointer"
-            >
-              <div className="bg-gradient-to-br from-purple-50 to-indigo-50 p-6 rounded-xl shadow-sm border border-purple-100 h-full group transition-all hover:shadow-md">
-                <div className="flex items-center justify-center w-16 h-16 bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded-full mb-4 shadow-md group-hover:shadow-lg transition-all group-hover:scale-110">
-                  <FaUserMd size={24} />
-                </div>
-                <h3 className="text-lg font-semibold mb-2 text-gray-800">Manage Doctors</h3>
-                <p className="text-gray-600">View and manage lab doctors</p>
-              </div>
-            </div>
-
-            <div 
-              onClick={() => setActiveTab("services")}
-              className="transform transition-all duration-300 hover:scale-105 cursor-pointer"
-            >
-              <div className="bg-gradient-to-br from-orange-50 to-amber-50 p-6 rounded-xl shadow-sm border border-orange-100 h-full group transition-all hover:shadow-md">
-                <div className="flex items-center justify-center w-16 h-16 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-full mb-4 shadow-md group-hover:shadow-lg transition-all group-hover:scale-110">
-                  <FaFlask size={24} />
-                </div>
-                <h3 className="text-lg font-semibold mb-2 text-gray-800">Manage Services</h3>
-                <p className="text-gray-600">View and manage lab services</p>
-              </div>
-            </div>
+              <FaHospital className="mr-2 h-5 w-5" />
+              Update Lab Info
+            </button>
           </div>
         </div>
 
-        {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="flex items-center">
-              <div className="p-3 rounded-full bg-blue-100 text-blue-600">
-                <FaUserMd className="h-6 w-6" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm text-gray-500">Total Doctors</p>
-                <p className="text-2xl font-semibold text-gray-800">
-                  {doctors.length}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="flex items-center">
-              <div className="p-3 rounded-full bg-green-100 text-green-600">
-                <FaFlask className="h-6 w-6" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm text-gray-500">Total Services</p>
-                <p className="text-2xl font-semibold text-gray-800">
-                  {services.length}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="flex items-center">
-              <div className="p-3 rounded-full bg-purple-100 text-purple-600">
-                <FaCalendarCheck className="h-6 w-6" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm text-gray-500">Today's Appointments</p>
-                <p className="text-2xl font-semibold text-gray-800">0</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="flex items-center">
-              <div className="p-3 rounded-full bg-yellow-100 text-yellow-600">
-                <FaChartLine className="h-6 w-6" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm text-gray-500">Monthly Revenue</p>
-                <p className="text-2xl font-semibold text-gray-800">₹0</p>
-              </div>
-            </div>
-          </div>
+        {/* Stats Overview Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <StatCard 
+            icon={FaUserMd} 
+            title="Total Doctors" 
+            value={doctors.length} 
+            color="bg-gradient-to-r from-blue-500 to-blue-600" 
+          />
+          <StatCard 
+            icon={FaFlask} 
+            title="Total Services" 
+            value={services.length} 
+            color="bg-gradient-to-r from-teal-500 to-teal-600" 
+          />
+          <StatCard 
+            icon={FaCalendarCheck} 
+            title="Today's Appointments" 
+            value="0" 
+            color="bg-gradient-to-r from-indigo-500 to-indigo-600" 
+          />
+          <StatCard 
+            icon={FaChartLine} 
+            title="Monthly Revenue" 
+            value="₹0" 
+            color="bg-gradient-to-r from-purple-500 to-purple-600" 
+          />
         </div>
 
-        {/* Lab Info Card */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">
-            Lab Information
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="flex items-start">
-              <FaMapMarkerAlt className="h-5 w-5 text-gray-500 mt-1" />
-              <div className="ml-3">
-                <p className="text-sm text-gray-500">Address</p>
-                <p className="text-gray-800">
-                  {labData?.address?.street}, {labData?.address?.city},{" "}
-                  {labData?.address?.state} - {labData?.address?.zipCode}
-                </p>
-              </div>
+        {/* Lab Information Card */}
+        <div className="bg-white rounded-xl shadow-sm mb-8 overflow-hidden border border-gray-100">
+          <div className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-900">Lab Information</h2>
+              <button
+                onClick={() => setShowAddLabModal(true)} 
+                className="text-blue-600 hover:text-blue-800 text-sm font-medium focus:outline-none"
+              >
+                <FaEdit className="inline-block mr-1 h-4 w-4" /> Edit
+              </button>
             </div>
-            <div className="flex items-start">
-              <FaPhone className="h-5 w-5 text-gray-500 mt-1" />
-              <div className="ml-3">
-                <p className="text-sm text-gray-500">Contact</p>
-                <p className="text-gray-800">{labData?.contactInfo?.phone}</p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div className="flex items-start">
+                  <FaMapMarkerAlt className="h-5 w-5 text-gray-500 mt-1" />
+                  <div className="ml-3">
+                    <p className="text-sm text-gray-500">Address</p>
+                    <p className="text-gray-800">
+                      {labData?.address?.street || "No address provided"}, {labData?.address?.city || ""}
+                      <br />
+                      {labData?.address?.state || ""} {labData?.address?.zipCode || ""}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start">
+                  <FaPhone className="h-5 w-5 text-gray-500 mt-1" />
+                  <div className="ml-3">
+                    <p className="text-sm text-gray-500">Contact</p>
+                    <p className="text-gray-800">{labData?.contactInfo?.phone || "No phone provided"}</p>
+                  </div>
+                </div>
               </div>
-            </div>
-            <div className="flex items-start">
-              <FaEnvelope className="h-5 w-5 text-gray-500 mt-1" />
-              <div className="ml-3">
-                <p className="text-sm text-gray-500">Email</p>
-                <p className="text-gray-800">{labData?.email}</p>
-              </div>
-            </div>
-            <div className="flex items-start">
-              <FaClock className="h-5 w-5 text-gray-500 mt-1" />
-              <div className="ml-3">
-                <p className="text-sm text-gray-500">Working Hours</p>
-                <p className="text-gray-800">
-                  Mon-Fri: {labData?.workingHours?.monday?.open} -{" "}
-                  {labData?.workingHours?.monday?.close}
-                </p>
+              <div className="space-y-4">
+                <div className="flex items-start">
+                  <FaEnvelope className="h-5 w-5 text-gray-500 mt-1" />
+                  <div className="ml-3">
+                    <p className="text-sm text-gray-500">Email</p>
+                    <p className="text-gray-800">{labData?.email || "No email provided"}</p>
+                  </div>
+                </div>
+                <div className="flex items-start">
+                  <FaClock className="h-5 w-5 text-gray-500 mt-1" />
+                  <div className="ml-3">
+                    <p className="text-sm text-gray-500">Working Hours</p>
+                    <p className="text-gray-800">
+                      Mon-Fri: {labData?.workingHours?.monday?.open || "9:00 AM"} - {labData?.workingHours?.monday?.close || "5:00 PM"}
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="bg-white rounded-lg shadow-md mb-8">
+        <div className="bg-white rounded-xl shadow-sm mb-8 border border-gray-100 overflow-hidden">
           <div className="border-b border-gray-200">
-            <nav className="flex -mb-px">
+            <nav className="flex">
               <button
                 onClick={() => setActiveTab("overview")}
-                className={`py-4 px-6 text-sm font-medium ${
+                className={`py-4 px-6 text-sm font-medium transition-colors ${
                   activeTab === "overview"
-                    ? "border-b-2 border-blue-500 text-blue-600"
-                    : "text-gray-500 hover:text-gray-700"
+                    ? "border-b-2 border-blue-600 text-blue-600"
+                    : "text-gray-500 hover:text-gray-700 hover:border-b-2 hover:border-gray-300"
                 }`}
               >
                 Overview
               </button>
               <button
                 onClick={() => setActiveTab("doctors")}
-                className={`py-4 px-6 text-sm font-medium ${
+                className={`py-4 px-6 text-sm font-medium transition-colors ${
                   activeTab === "doctors"
-                    ? "border-b-2 border-blue-500 text-blue-600"
-                    : "text-gray-500 hover:text-gray-700"
+                    ? "border-b-2 border-blue-600 text-blue-600"
+                    : "text-gray-500 hover:text-gray-700 hover:border-b-2 hover:border-gray-300"
                 }`}
               >
                 Doctors
               </button>
               <button
                 onClick={() => setActiveTab("services")}
-                className={`py-4 px-6 text-sm font-medium ${
+                className={`py-4 px-6 text-sm font-medium transition-colors ${
                   activeTab === "services"
-                    ? "border-b-2 border-blue-500 text-blue-600"
-                    : "text-gray-500 hover:text-gray-700"
+                    ? "border-b-2 border-blue-600 text-blue-600"
+                    : "text-gray-500 hover:text-gray-700 hover:border-b-2 hover:border-gray-300"
                 }`}
               >
                 Services
@@ -767,59 +708,84 @@ export default function LabDashboard() {
                 {/* Doctors Tab */}
                 {activeTab === "doctors" && (
                   <div className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      <div
+                    <div className="flex justify-between items-center mb-6">
+                      <h3 className="text-lg font-semibold text-gray-800">Doctors</h3>
+                      <button
                         onClick={() => setShowAddDoctorModal(true)}
-                        className="transform transition-all duration-300 hover:scale-105 cursor-pointer"
+                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
                       >
-                        <div className="bg-gradient-to-br from-blue-50 to-cyan-50 p-6 rounded-xl shadow-sm border border-blue-100 h-full group transition-all hover:shadow-md">
-                          <div className="flex items-center justify-center w-16 h-16 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-full mb-4 shadow-md group-hover:shadow-lg transition-all group-hover:scale-110">
-                            <FaPlus className="h-8 w-8" />
-                          </div>
-                          <h3 className="text-lg font-semibold mb-2 text-gray-800">Add New Doctor</h3>
-                          <p className="text-gray-600 text-center">Add a new doctor to your lab</p>
-                        </div>
-                      </div>
+                        <FaPlus className="mr-2 h-4 w-4" />
+                        Add Doctor
+                      </button>
+                    </div>
 
-                      {doctors.map((doctor) => (
-                        <div
-                          key={doctor._id}
-                          className="flex items-center justify-between p-4 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors duration-150"
-                        >
-                          <div className="flex items-center space-x-4">
-                            <div className="h-12 w-12 bg-teal-100 rounded-full flex items-center justify-center">
-                              <FaUserMd className="h-6 w-6 text-teal-600" />
-                            </div>
-                            <div>
-                              <h3 className="text-lg font-semibold text-gray-800">
-                                {doctor.name}
-                              </h3>
-                              <div className="flex items-center space-x-4 text-sm text-gray-600">
-                                <span>{doctor.specialization}</span>
-                                <span>•</span>
-                                <span>{doctor.experience} years exp.</span>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {doctors.length === 0 ? (
+                        <div className="col-span-full p-8 text-center bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                          <FaUserMd className="mx-auto h-12 w-12 text-gray-400" />
+                          <h3 className="mt-2 text-sm font-medium text-gray-900">No doctors</h3>
+                          <p className="mt-1 text-sm text-gray-500">Get started by adding a new doctor.</p>
+                          <div className="mt-6">
+                            <button
+                              onClick={() => setShowAddDoctorModal(true)}
+                              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                            >
+                              <FaPlus className="mr-2 h-4 w-4" />
+                              Add Doctor
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        doctors.map((doctor) => (
+                          <div
+                            key={doctor._id}
+                            className="bg-white rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden"
+                          >
+                            <div className="p-6">
+                              <div className="flex items-center space-x-4 mb-4">
+                                <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center">
+                                  <FaUserMd className="h-6 w-6 text-blue-600" />
+                                </div>
+                                <div>
+                                  <h3 className="text-lg font-semibold text-gray-800">
+                                    {doctor.name}
+                                  </h3>
+                                  <p className="text-sm text-gray-500">{doctor.specialization}</p>
+                                </div>
+                              </div>
+                              <div className="border-t border-gray-100 pt-4">
+                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                  <div>
+                                    <p className="text-gray-500">Experience</p>
+                                    <p className="font-medium">{doctor.experience} years</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-gray-500">Qualification</p>
+                                    <p className="font-medium">{doctor.qualification}</p>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex justify-end space-x-2 mt-4">
+                                <button
+                                  onClick={() => openEditDoctorModal(doctor)}
+                                  className="p-2 text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
+                                >
+                                  <FaEdit className="h-5 w-5" />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setSelectedDoctor(doctor);
+                                    setShowDeleteDoctorModal(true);
+                                  }}
+                                  className="p-2 text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                                >
+                                  <FaTrash className="h-5 w-5" />
+                                </button>
                               </div>
                             </div>
                           </div>
-                          <div className="flex items-center space-x-4">
-                            <button
-                              onClick={() => openEditDoctorModal(doctor)}
-                              className="text-teal-600 hover:text-teal-800 focus:outline-none"
-                            >
-                              <FaEdit className="h-5 w-5" />
-                            </button>
-                            <button
-                              onClick={() => {
-                                setSelectedDoctor(doctor);
-                                setShowDeleteDoctorModal(true);
-                              }}
-                              className="text-red-600 hover:text-red-800 focus:outline-none"
-                            >
-                              <FaTrash className="h-5 w-5" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                        ))
+                      )}
                     </div>
                   </div>
                 )}
@@ -827,104 +793,189 @@ export default function LabDashboard() {
                 {/* Services Tab */}
                 {activeTab === "services" && (
                   <div className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      <div
+                    <div className="flex justify-between items-center mb-6">
+                      <h3 className="text-lg font-semibold text-gray-800">Services</h3>
+                      <button
                         onClick={() => setShowAddServiceModal(true)}
-                        className="transform transition-all duration-300 hover:scale-105 cursor-pointer"
+                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
                       >
-                        <div className="bg-gradient-to-br from-blue-50 to-cyan-50 p-6 rounded-xl shadow-sm border border-blue-100 h-full group transition-all hover:shadow-md">
-                          <div className="flex items-center justify-center w-16 h-16 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-full mb-4 shadow-md group-hover:shadow-lg transition-all group-hover:scale-110">
-                            <FaPlus className="h-8 w-8" />
-                          </div>
-                          <h3 className="text-lg font-semibold mb-2 text-gray-800">Add New Service</h3>
-                          <p className="text-gray-600 text-center">Add a new service to your lab</p>
-                        </div>
-                      </div>
+                        <FaPlus className="mr-2 h-4 w-4" />
+                        Add Service
+                      </button>
+                    </div>
 
-                      {services.map((service) => (
-                        <div
-                          key={service._id}
-                          className="flex items-center justify-between p-4 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors duration-150"
-                        >
-                          <div className="flex items-center space-x-4">
-                            <div className="h-12 w-12 bg-teal-100 rounded-full flex items-center justify-center">
-                              <FaFlask className="h-6 w-6 text-teal-600" />
-                            </div>
-                            <div>
-                              <h3 className="text-lg font-semibold text-gray-800">
-                                {service.name}
-                              </h3>
-                              <div className="flex items-center space-x-4 text-sm text-gray-600">
-                                <span>{service.duration} mins</span>
-                                <span>•</span>
-                                <span>₹{service.price}</span>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {services.length === 0 ? (
+                        <div className="col-span-full p-8 text-center bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                          <FaFlask className="mx-auto h-12 w-12 text-gray-400" />
+                          <h3 className="mt-2 text-sm font-medium text-gray-900">No services</h3>
+                          <p className="mt-1 text-sm text-gray-500">Get started by adding a new service.</p>
+                          <div className="mt-6">
+                            <button
+                              onClick={() => setShowAddServiceModal(true)}
+                              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                            >
+                              <FaPlus className="mr-2 h-4 w-4" />
+                              Add Service
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        services.map((service) => (
+                          <div
+                            key={service._id}
+                            className="bg-white rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden"
+                          >
+                            <div className="p-6">
+                              <div className="flex items-center space-x-4 mb-4">
+                                <div className="h-12 w-12 bg-teal-100 rounded-full flex items-center justify-center">
+                                  <FaFlask className="h-6 w-6 text-teal-600" />
+                                </div>
+                                <div>
+                                  <h3 className="text-lg font-semibold text-gray-800">
+                                    {service.name}
+                                  </h3>
+                                  <p className="text-sm text-gray-500">{service.description}</p>
+                                </div>
+                              </div>
+                              <div className="border-t border-gray-100 pt-4">
+                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                  <div>
+                                    <p className="text-gray-500">Duration</p>
+                                    <p className="font-medium">{service.duration} mins</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-gray-500">Price</p>
+                                    <p className="font-medium">₹{service.price}</p>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex justify-end space-x-2 mt-4">
+                                <button
+                                  onClick={() => openEditServiceModal(service)}
+                                  className="p-2 text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
+                                >
+                                  <FaEdit className="h-5 w-5" />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setSelectedService(service);
+                                    setShowDeleteServiceModal(true);
+                                  }}
+                                  className="p-2 text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                                >
+                                  <FaTrash className="h-5 w-5" />
+                                </button>
                               </div>
                             </div>
                           </div>
-                          <div className="flex items-center space-x-4">
-                            <button
-                              onClick={() => openEditServiceModal(service)}
-                              className="text-teal-600 hover:text-teal-800 focus:outline-none"
-                            >
-                              <FaEdit className="h-5 w-5" />
-                            </button>
-                            <button
-                              onClick={() => {
-                                setSelectedService(service);
-                                setShowDeleteServiceModal(true);
-                              }}
-                              className="text-red-600 hover:text-red-800 focus:outline-none"
-                            >
-                              <FaTrash className="h-5 w-5" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                        ))
+                      )}
                     </div>
                   </div>
                 )}
 
                 {/* Overview Tab */}
                 {activeTab === "overview" && (
-                  <div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-8">
+                    {/* Quick actions */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                      <button
+                        onClick={() => setShowAddDoctorModal(true)}
+                        className="flex flex-col items-center p-6 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl border border-blue-200 hover:shadow-md transition-all duration-300"
+                      >
+                        <div className="bg-blue-600 text-white p-3 rounded-full mb-4">
+                          <FaUserMd className="h-6 w-6" />
+                        </div>
+                        <h3 className="text-sm font-semibold text-gray-900">Add Doctor</h3>
+                      </button>
+                      <button
+                        onClick={() => setShowAddServiceModal(true)}
+                        className="flex flex-col items-center p-6 bg-gradient-to-br from-teal-50 to-teal-100 rounded-xl border border-teal-200 hover:shadow-md transition-all duration-300"
+                      >
+                        <div className="bg-teal-600 text-white p-3 rounded-full mb-4">
+                          <FaFlask className="h-6 w-6" />
+                        </div>
+                        <h3 className="text-sm font-semibold text-gray-900">Add Service</h3>
+                      </button>
+                      <button className="flex flex-col items-center p-6 bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-xl border border-indigo-200 hover:shadow-md transition-all duration-300">
+                        <div className="bg-indigo-600 text-white p-3 rounded-full mb-4">
+                          <FaCalendarCheck className="h-6 w-6" />
+                        </div>
+                        <h3 className="text-sm font-semibold text-gray-900">View Appointments</h3>
+                      </button>
+                      <button
+                        onClick={() => setShowAddLabModal(true)}
+                        className="flex flex-col items-center p-6 bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl border border-purple-200 hover:shadow-md transition-all duration-300"
+                      >
+                        <div className="bg-purple-600 text-white p-3 rounded-full mb-4">
+                          <FaHospital className="h-6 w-6" />
+                        </div>
+                        <h3 className="text-sm font-semibold text-gray-900">Update Lab Info</h3>
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       {/* Recent Appointments */}
-                      <div className="bg-white rounded-lg shadow-md p-6">
-                        <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                      <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                        <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                          <FaCalendarCheck className="mr-2 text-blue-600" />
                           Recent Appointments
                         </h3>
                         <div className="space-y-4">
-                          <p className="text-gray-500 text-center py-4">
-                            No recent appointments
-                          </p>
+                          <div className="text-gray-500 text-center py-8 bg-gray-50 rounded-lg border border-dashed border-gray-200">
+                            <FaCalendarCheck className="mx-auto h-8 w-8 text-gray-400 mb-2" />
+                            <p>No recent appointments</p>
+                            <p className="text-sm mt-1">Appointments will appear here once booked</p>
+                          </div>
                         </div>
                       </div>
 
-                      {/* Upcoming Services */}
-                      <div className="bg-white rounded-lg shadow-md p-6">
-                        <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                      {/* Popular Services */}
+                      <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                        <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                          <FaFlask className="mr-2 text-teal-600" />
                           Popular Services
                         </h3>
-                        <div className="space-y-4">
-                          {services.slice(0, 5).map((service) => (
-                            <div
-                              key={service._id}
-                              className="flex items-center justify-between"
+                        {services.length === 0 ? (
+                          <div className="text-gray-500 text-center py-8 bg-gray-50 rounded-lg border border-dashed border-gray-200">
+                            <FaFlask className="mx-auto h-8 w-8 text-gray-400 mb-2" />
+                            <p>No services added yet</p>
+                            <button
+                              onClick={() => setShowAddServiceModal(true)}
+                              className="mt-2 inline-flex items-center px-3 py-1.5 text-xs font-medium rounded text-blue-700 bg-blue-100 hover:bg-blue-200"
                             >
-                              <div>
+                              <FaPlus className="mr-1 h-3 w-3" />
+                              Add Service
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            {services.slice(0, 5).map((service) => (
+                              <div
+                                key={service._id}
+                                className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-all"
+                              >
+                                <div className="flex items-center">
+                                  <div className="h-8 w-8 bg-teal-100 rounded-full flex items-center justify-center mr-3">
+                                    <FaFlask className="h-4 w-4 text-teal-600" />
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-800">
+                                      {service.name}
+                                    </p>
+                                    <p className="text-xs text-gray-500">
+                                      {service.duration} mins
+                                    </p>
+                                  </div>
+                                </div>
                                 <p className="text-sm font-medium text-gray-800">
-                                  {service.name}
-                                </p>
-                                <p className="text-xs text-gray-500">
-                                  {service.duration} mins
+                                  ₹{service.price}
                                 </p>
                               </div>
-                              <p className="text-sm font-medium text-gray-800">
-                                ₹{service.price}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1427,8 +1478,6 @@ export default function LabDashboard() {
           </div>
         </div>
       )}
-
-      <ToastContainer />
     </DashboardLayout>
   );
 }

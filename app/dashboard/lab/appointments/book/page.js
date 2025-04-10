@@ -20,6 +20,7 @@ import {
   FaMapMarkerAlt,
 } from "react-icons/fa";
 import { toast, ToastContainer } from "react-toastify";
+import TimeSlotPicker from "../../../../../components/TimeSlotPicker";
 
 export default function LabBookAppointment() {
   const router = useRouter();
@@ -272,6 +273,12 @@ export default function LabBookAppointment() {
       setIsCheckingSlots(true);
       const token = localStorage.getItem("token");
       const labId = localStorage.getItem("labId");
+      
+      // Log user information and request details for debugging
+      console.log("Attempting to generate slots with:");
+      console.log("- Doctor ID:", selectedDoctor._id);
+      console.log("- Lab ID:", labId);
+      console.log("- Token exists:", !!token);
 
       // Now that labAdmin users have permission, we can directly call the slots API
       const response = await fetch(
@@ -287,24 +294,47 @@ export default function LabBookAppointment() {
         }
       );
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(e => ({ error: "Unknown error" }));
-        throw new Error(errorData.error || `Failed to generate slots: ${response.status}`);
+      console.log("Slot generation response status:", response.status);
+      
+      // Try to get the response body even if there's an error
+      let responseBody;
+      try {
+        responseBody = await response.json();
+        console.log("Response body:", responseBody);
+      } catch (e) {
+        console.error("Failed to parse response:", e);
+        responseBody = { error: "Failed to parse response" };
       }
 
-      const data = await response.json();
+      if (!response.ok) {
+        // If we get a 403, it might be that the API route wasn't properly updated
+        if (response.status === 403) {
+          console.log("Permission denied. Using fallback approach...");
+          await fetchAvailableSlotsForDate(selectedDate);
+          return;
+        }
+        
+        throw new Error(responseBody.error || `Failed to generate slots: ${response.status}`);
+      }
       
-      if (data.message === "Slots already exist for this doctor") {
+      if (responseBody.message === "Slots already exist for this doctor") {
         toast.info("Slots already exist for this doctor. Showing available slots...");
       } else {
         toast.success("Time slots generated successfully");
       }
       
       // Now fetch available slots for the selected date
-      fetchAvailableSlotsForDate(selectedDate);
+      await fetchAvailableSlotsForDate(selectedDate);
     } catch (error) {
       console.error("Error generating slots:", error);
       toast.error(error.message || "Failed to generate slots");
+      
+      // Even if generating slots fails, try to fetch existing slots anyway
+      try {
+        await fetchAvailableSlotsForDate(selectedDate);
+      } catch (innerError) {
+        console.error("Failed to fetch slots after generation error:", innerError);
+      }
     } finally {
       setIsCheckingSlots(false);
     }
@@ -327,6 +357,7 @@ export default function LabBookAppointment() {
       const dayName = days[dayOfWeek];
 
       console.log("Fetching slots for doctor:", selectedDoctor._id, "day:", dayName);
+      console.log("URL being called:", `/api/slots?doctor_id=${selectedDoctor._id}&day=${dayName}&is_available=true`);
 
       // First, get the doctor's slots for this day of week
       const slotsResponse = await fetch(
@@ -337,20 +368,30 @@ export default function LabBookAppointment() {
         }
       );
 
-      if (!slotsResponse.ok) {
-        const errorData = await slotsResponse.json().catch(e => ({ error: "Unknown error" }));
-        throw new Error(errorData.error || `Failed to fetch doctor slots: ${slotsResponse.status}`);
+      console.log("Slots API response status:", slotsResponse.status);
+      
+      let slotsData;
+      try {
+        slotsData = await slotsResponse.json();
+        console.log("Slots data:", slotsData);
+      } catch (e) {
+        console.error("Failed to parse slots response:", e);
+        throw new Error("Failed to parse slots response");
       }
 
-      const slotsData = await slotsResponse.json();
-      console.log("Retrieved slots data:", slotsData);
+      if (!slotsResponse.ok) {
+        throw new Error(slotsData.error || `Failed to fetch doctor slots: ${slotsResponse.status}`);
+      }
       
       if (!slotsData.slots || slotsData.slots.length === 0) {
+        console.log("No slots found for this doctor on", dayName);
         setAvailableSlots([]);
         return;
       }
       
       // Then, get booked appointments for this date and doctor
+      console.log("Fetching appointments for date:", formattedDate);
+      
       const appointmentsResponse = await fetch(
         `/api/appointments?doctor=${selectedDoctor._id}&date=${formattedDate}`, {
           headers: {
@@ -359,13 +400,20 @@ export default function LabBookAppointment() {
         }
       );
 
-      if (!appointmentsResponse.ok) {
-        const errorData = await appointmentsResponse.json().catch(e => ({ error: "Unknown error" }));
-        throw new Error(errorData.error || "Failed to fetch appointments");
+      console.log("Appointments API response status:", appointmentsResponse.status);
+      
+      let appointmentsData;
+      try {
+        appointmentsData = await appointmentsResponse.json();
+        console.log("Appointments data:", appointmentsData);
+      } catch (e) {
+        console.error("Failed to parse appointments response:", e);
+        throw new Error("Failed to parse appointments response");
       }
 
-      const appointmentsData = await appointmentsResponse.json();
-      console.log("Retrieved appointments data:", appointmentsData);
+      if (!appointmentsResponse.ok) {
+        throw new Error(appointmentsData.error || "Failed to fetch appointments");
+      }
       
       // Extract booked times from appointments that are pending or confirmed
       const bookedTimes = appointmentsData.appointments
@@ -374,26 +422,41 @@ export default function LabBookAppointment() {
 
       console.log("Booked times:", bookedTimes);
 
-      // Convert slot times to 12-hour format and filter out booked ones
-      const availableSlotTimes = slotsData.slots
+      // Process slots and filter out booked ones
+      const availableSlotObjects = slotsData.slots
         .filter(slot => {
           // Check if this slot's time is not in bookedTimes
           const slotTime24h = slot.start_time;
-          return !bookedTimes.some(bookedTime => {
+          console.log("Checking slot time:", slotTime24h);
+          
+          const isBooked = bookedTimes.some(bookedTime => {
             const bookedTime24h = bookedTime.split(':').slice(0, 2).join(':');
+            console.log("  Comparing with booked time:", bookedTime24h);
             return bookedTime24h === slotTime24h;
           });
+          
+          console.log("  Slot is available:", !isBooked);
+          return !isBooked;
         })
         .map(slot => {
-          // Convert 24h time to 12h time
-          const [hour, minute] = slot.start_time.split(':');
-          const hour12 = (hour % 12) || 12;
-          const ampm = hour < 12 ? 'AM' : 'PM';
-          return `${hour12}:${minute.padStart(2, '0')} ${ampm}`;
+          // Convert 24h time to 12h time and create a structured slot object
+          const [hours, minutes] = slot.start_time.split(':');
+          const hour = parseInt(hours);
+          const minute = parseInt(minutes);
+          const ampm = hour >= 12 ? 'PM' : 'AM';
+          const formattedHour = hour % 12 || 12;
+
+          return {
+            id: slot._id,
+            time: `${formattedHour}:${minute.toString().padStart(2, '0')} ${ampm}`,
+            rawTime: slot.start_time,
+            isAdminAdded: slot.date !== null,
+            period: hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening',
+          };
         });
 
-      console.log("Available slot times:", availableSlotTimes);
-      setAvailableSlots(availableSlotTimes);
+      console.log("Final available slot objects:", availableSlotObjects);
+      setAvailableSlots(availableSlotObjects);
     } catch (error) {
       console.error("Error fetching available slots:", error);
       toast.error(error.message || "Failed to fetch available slots");
@@ -435,50 +498,75 @@ export default function LabBookAppointment() {
       }
 
       setIsSubmitting(true);
+      
+      // Get and verify token
       const token = localStorage.getItem("token");
+      if (!token) {
+        toast.error("Authentication token not found. Please log in again.");
+        setTimeout(() => {
+          router.push("/auth/login");
+        }, 2000);
+        return;
+      }
+      
       const labId = localStorage.getItem("labId");
+      if (!labId) {
+        toast.error("Lab ID not found. Please log in again.");
+        return;
+      }
 
-      // Convert the selected time from 12h to 24h format for the API
-      const convert12to24 = (time12h) => {
-        const [timePart, modifier] = time12h.split(' ');
-        let [hours, minutes] = timePart.split(':');
-        
-        if (hours === '12') {
-          hours = '00';
-        }
-        
-        if (modifier === 'PM') {
-          hours = parseInt(hours, 10) + 12;
-        }
-        
-        return `${hours.toString().padStart(2, '0')}:${minutes}`;
-      };
+      // Get the selected slot object
+      const selectedSlot = availableSlots.find(slot => slot.time === selectedTime);
+      if (!selectedSlot) {
+        throw new Error("Selected time slot information not found");
+      }
 
-      const time24h = convert12to24(selectedTime);
-
+      // Debug service and other data
+      console.log("Selected patient:", selectedPatient);
+      console.log("Selected doctor:", selectedDoctor);
+      console.log("Selected service:", selectedService);
+      console.log("Service ID type:", typeof selectedService._id);
+      console.log("Service ID value:", selectedService._id);
+      console.log("Service ID string:", String(selectedService._id));
+      console.log("Service ID Object:", {id: selectedService._id});
+      console.log("Selected date:", selectedDate);
+      console.log("Selected time object:", selectedSlot);
+      console.log("Token exists:", !!token);
+      console.log("Token length:", token.length);
+      console.log("Token prefix:", token.substring(0, 15) + "...");
+      
       const appointmentData = {
         patient_id: selectedPatient._id,
         doctor_id: selectedDoctor._id,
-        service_id: selectedService._id,
+        service_id: String(selectedService._id),
         date: selectedDate,
-        time: time24h,
-        notes: notes,
+        time: selectedSlot.rawTime,
+        notes: notes || "",
         lab_id: labId,
-        booked_by: "admin", // This is booked by lab admin
-        payment_method: "cash", // Default to cash for lab admin bookings
-        payment_amount: selectedService.price || 0
+        booked_by: "labAdmin",
+        payment_method: "cash",
+        payment_status: "paid",
+        payment_amount: selectedService.price || 0,
+        payment_id: "N/A",
+        razorpay_order_id: "N/A",
+        razorpay_signature: "N/A"
       };
+
+      console.log("Sending appointment data:", JSON.stringify(appointmentData, null, 2));
+      console.log("Authorization header being sent:", `Bearer ${token}`);
 
       const response = await fetch("/api/appointments", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          "Authorization": `Bearer ${token}`
         },
         body: JSON.stringify(appointmentData),
       });
 
+      console.log("API response status:", response.status, response.statusText);
       const data = await response.json();
+      console.log("Appointment creation response:", data);
 
       if (!response.ok) {
         throw new Error(data.error || "Failed to book appointment");
@@ -954,21 +1042,11 @@ export default function LabBookAppointment() {
                       </p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
-                      {availableSlots.map((slot) => (
-                        <button
-                          key={slot}
-                          onClick={() => handleTimeSelection(slot)}
-                          className={`py-2 px-3 rounded-md text-sm font-medium ${
-                            selectedTime === slot
-                              ? "bg-teal-600 text-white"
-                              : "bg-gray-100 text-gray-800 hover:bg-gray-200"
-                          }`}
-                        >
-                          {slot}
-                        </button>
-                      ))}
-                    </div>
+                    <TimeSlotPicker 
+                      availableSlots={availableSlots}
+                      selectedTime={selectedTime}
+                      onTimeSelect={(time) => handleTimeSelection(time)}
+                    />
                   )}
                 </>
               )}

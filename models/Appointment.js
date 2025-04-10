@@ -13,8 +13,18 @@ const appointmentSchema = new mongoose.Schema({
   },
   service_id: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "Service",
+    refPath: 'service_model',
     required: true,
+  },
+  service_model: {
+    type: String,
+    enum: ['Service', 'LabService'],
+    default: 'Service'
+  },
+  lab_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Lab",
+    default: null,
   },
   date: {
     type: Date,
@@ -31,7 +41,7 @@ const appointmentSchema = new mongoose.Schema({
   },
   payment_status: {
     type: String,
-    enum: ["pending", "completed", "refunded", "failed"],
+    enum: ["pending", "completed", "refunded", "failed", "paid"],
     default: "pending",
   },
   payment_amount: {
@@ -62,7 +72,7 @@ const appointmentSchema = new mongoose.Schema({
   },
   booked_by: {
     type: String,
-    enum: ["patient", "admin", "doctor"],
+    enum: ["patient", "admin", "doctor", "labAdmin"],
     default: "patient",
   },
   notes: {

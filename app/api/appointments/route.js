@@ -5,10 +5,12 @@ import connectToDatabase from "../../../lib/db";
 import Appointment from "../../../models/Appointment";
 import User from "../../../models/User";
 import Service from "../../../models/Service";
+import LabService from "../../../models/LabService";
 import { withAuth } from "../../../middleware/auth";
 import DoctorSlot from "../../../models/DoctorSlot";
 import { sendBookingConfirmation } from "../../../lib/twilio";
 import { sendBookingConfirmationEmail } from "../../../lib/emailService";
+import mongoose from "mongoose";
 
 // Get appointments based on user role
 async function getAppointments(req, context) {
@@ -165,6 +167,7 @@ async function createAppointment(req, context) {
       payment_id, // Razorpay payment ID
       razorpay_order_id, // Razorpay order ID
       razorpay_signature, // Razorpay signature
+      lab_id, // Lab ID for lab appointments
     } = await req.json();
 
     console.log("Appointment creation request with payment details:", {
@@ -172,6 +175,7 @@ async function createAppointment(req, context) {
       payment_id,
       razorpay_order_id,
       razorpay_signature,
+      lab_id,
     });
 
     // Determine the patient ID (either from request or from authenticated user)
@@ -207,10 +211,37 @@ async function createAppointment(req, context) {
       return NextResponse.json({ error: "Doctor not found" }, { status: 404 });
     }
 
-    // Check if service exists
+    // Check if service exists and set service model
+    let serviceModel = 'Service';
     const service = await Service.findById(service_id);
     if (!service) {
-      return NextResponse.json({ error: "Service not found" }, { status: 404 });
+      // If not found in regular services, check if it's a lab service
+      const labService = await LabService.findById(service_id);
+      if (!labService) {
+        console.error(`Service not found with ID: ${service_id}`);
+        return NextResponse.json({ error: "Service not found" }, { status: 404 });
+      }
+      
+      // For lab services, lab_id should be required
+      if (booked_by === "labAdmin" && !lab_id) {
+        console.error("Lab ID is required for lab services with lab admin booking");
+        return NextResponse.json(
+          { error: "Lab ID is required for this service" },
+          { status: 400 }
+        );
+      }
+      
+      // If labService exists, we can continue with the appointment creation
+      console.log(`Using lab service: ${labService.name}`);
+      serviceModel = 'LabService';
+    } else {
+      console.log(`Using regular service: ${service.name}`);
+      
+      // For regular services, we shouldn't have a lab_id unless it's a lab admin booking
+      if (lab_id && booked_by !== "labAdmin") {
+        console.warn(`Lab ID provided for non-lab service: ${service.name}`);
+        // We don't throw an error here, just log a warning
+      }
     }
 
     // Check if patient exists
@@ -337,22 +368,21 @@ async function createAppointment(req, context) {
       patient_id: actualPatientId,
       doctor_id,
       service_id,
+      service_model: serviceModel,
       date: new Date(date),
       time,
       notes,
       payment_method,
       payment_amount,
       booked_by,
-      // If booked by admin, mark as confirmed
-      status: booked_by === "admin" ? "confirmed" : "pending",
-      // If payment method is cash, mark payment as pending
+      // If booked by admin or labAdmin, mark as confirmed
+      status: (booked_by === "admin" || booked_by === "labAdmin") ? "confirmed" : "pending",
+      // If payment method is cash, mark payment as pending or paid for labAdmin
       // If payment method is online and payment_id is provided, mark as completed
       payment_status:
-        payment_method === "cash"
-          ? "pending"
-          : payment_method === "online" && payment_id
-          ? "completed"
-          : "pending",
+        booked_by === "labAdmin" ? "paid" :
+        payment_method === "cash" ? "pending" :
+        payment_method === "online" && payment_id ? "completed" : "pending",
       payment_date:
         payment_method === "cash" ||
         (payment_method === "online" && !payment_id)
@@ -362,6 +392,8 @@ async function createAppointment(req, context) {
       payment_id: payment_method === "cash" ? "N/A" : (payment_id || null),
       razorpay_order_id: payment_method === "cash" ? "N/A" : (razorpay_order_id || null),
       razorpay_signature: payment_method === "cash" ? "N/A" : (razorpay_signature || null),
+      // Only include lab_id if it's provided and applicable
+      ...(lab_id ? { lab_id } : {}),
     });
 
     await appointment.save();
@@ -432,15 +464,37 @@ async function createAppointment(req, context) {
       }
     }
 
+    // Get service details for SMS/email notifications
+    let serviceForNotifications;
+    if (serviceModel === 'LabService') {
+      serviceForNotifications = await LabService.findById(service_id);
+    } else {
+      serviceForNotifications = service;
+    }
+
     // Send booking confirmation SMS
     try {
+      // Get service name based on service model
+      let serviceName;
+      if (serviceModel === 'LabService') {
+        try {
+          const labService = await LabService.findById(service_id);
+          serviceName = labService?.name || "Lab Service";
+        } catch (error) {
+          console.error("Error fetching lab service name for SMS:", error);
+          serviceName = "Lab Service";
+        }
+      } else {
+        serviceName = service?.name || "Service";
+      }
+
       // Prepare data for the SMS
       const smsData = {
         patientName: patient.name,
         doctorName: doctor.name,
         date: appointment.date,
         time: appointment.time,
-        serviceName: service.name,
+        serviceName: serviceName,
         amount: appointment.payment_amount,
         status: appointment.status,
       };
@@ -455,13 +509,26 @@ async function createAppointment(req, context) {
     // Send booking confirmation email if patient has an email
     if (patient.email) {
       try {
-        // Get doctor and service details for the email
+        // Get doctor details for the email
         const populatedDoctor = await User.findById(doctor_id).select(
           "name specialization"
         );
-        const populatedService = await Service.findById(service_id).select(
-          "name price duration"
-        );
+        
+        // Get service details based on service model
+        let populatedService;
+        if (serviceModel === 'LabService') {
+          try {
+            populatedService = await LabService.findById(service_id).select(
+              "name price duration"
+            );
+          } catch (error) {
+            console.error("Error fetching lab service for email:", error);
+          }
+        } else {
+          populatedService = await Service.findById(service_id).select(
+            "name price duration"
+          );
+        }
 
         // Prepare data for the email with complete details
         const emailData = {
