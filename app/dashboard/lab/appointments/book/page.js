@@ -273,43 +273,38 @@ export default function LabBookAppointment() {
       const token = localStorage.getItem("token");
       const labId = localStorage.getItem("labId");
 
-      // Instead of generating slots directly, we'll use a different approach:
-      // 1. First check if slots exist for this day of week
-      const dayOfWeek = new Date(selectedDate).getDay(); // 0 = Sunday, 1 = Monday, etc.
-      const days = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
-      const dayName = days[dayOfWeek];
-
-      // Check if doctor has any slots for this day
-      const checkSlotsResponse = await fetch(
-        `/api/slots?doctor_id=${selectedDoctor._id}&day=${dayName}`, {
+      // Now that labAdmin users have permission, we can directly call the slots API
+      const response = await fetch(
+        `/api/slots`, {
+          method: "POST",
           headers: {
+            "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
+          body: JSON.stringify({
+            doctor_id: selectedDoctor._id
+          }),
         }
       );
 
-      if (!checkSlotsResponse.ok) {
-        const errorData = await checkSlotsResponse.json().catch(e => ({ error: "Unknown error" }));
-        throw new Error(errorData.error || `Failed to check doctor slots: ${checkSlotsResponse.status}`);
+      if (!response.ok) {
+        const errorData = await response.json().catch(e => ({ error: "Unknown error" }));
+        throw new Error(errorData.error || `Failed to generate slots: ${response.status}`);
       }
 
-      const slotsData = await checkSlotsResponse.json();
+      const data = await response.json();
       
-      if (slotsData.slots && slotsData.slots.length > 0) {
-        // Slots already exist, just show them
+      if (data.message === "Slots already exist for this doctor") {
         toast.info("Slots already exist for this doctor. Showing available slots...");
-        fetchAvailableSlotsForDate(selectedDate);
       } else {
-        // No slots exist - we need to use the admin endpoint to add default slots
-        // Since we don't have direct permission, show a helpful message to the user
-        toast.warn(
-          "This doctor doesn't have any time slots configured. Please contact an administrator to set up slots.",
-          { autoClose: 7000 }
-        );
+        toast.success("Time slots generated successfully");
       }
+      
+      // Now fetch available slots for the selected date
+      fetchAvailableSlotsForDate(selectedDate);
     } catch (error) {
-      console.error("Error checking/generating slots:", error);
-      toast.error(error.message || "Failed to check doctor slots");
+      console.error("Error generating slots:", error);
+      toast.error(error.message || "Failed to generate slots");
     } finally {
       setIsCheckingSlots(false);
     }
