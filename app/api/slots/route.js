@@ -222,7 +222,7 @@ async function updateSlots(req, context) {
 
 // Apply authentication middleware
 export const GET = (req, context) => withAuth(getSlots, ["admin", "doctor", "patient"])(req, context);
-export const POST = (req, context) => withAuth(generateSlots, ["admin"])(req, context);
+export const POST = (req, context) => withAuth(generateSlots, ["admin", "labAdmin"])(req, context);
 export const PUT = (req, context) => withAuth(updateSlots, ["admin"])(req, context);
 
 // Add additional error handling around the middleware
