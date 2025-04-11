@@ -1,82 +1,75 @@
-import { NextResponse } from "next/server";
-import connectToDatabase from "../../../../lib/db";
-import User from "../../../../models/User";
-import Appointment from "../../../../models/Appointment";
-import Service from "../../../../models/Service";
-import { withAuth } from "../../../../middleware/auth";
-
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-// Get admin dashboard statistics
-async function getStats(req) {
+import { NextResponse } from "next/server";
+import dbConnect from "@/lib/dbConnect";
+import { withAuth } from "@/middleware/auth";
+import Appointment from "@/models/Appointment";
+import Lab from "@/models/Lab";
+import Doctor from "@/models/Doctor";
+import User from "@/models/User";
+
+async function handler(req) {
   try {
-    await connectToDatabase();
+    await dbConnect();
 
-    // Count doctors
-    const doctorsCount = await User.countDocuments({ role: "doctor" });
+    // Get counts
+    const [
+      totalAppointments,
+      totalLabs,
+      totalDoctors,
+      totalPatients
+    ] = await Promise.all([
+      Appointment.countDocuments(),
+      Lab.countDocuments(),
+      Doctor.countDocuments(),
+      User.countDocuments({ role: 'patient' })
+    ]);
 
-    // Get recent doctors (limit to 5)
-    const recentDoctors = await User.find({ role: "doctor" })
-      .select("name mobile specialization")
+    // Get recent appointments
+    const recentAppointments = await Appointment.find()
       .sort({ createdAt: -1 })
-      .limit(5);
+      .limit(5)
+      .populate('patient_id', 'name email')
+      .populate('doctor_id', 'name specialization')
+      .populate('lab_id', 'name location')
+      .lean();
 
-    // Count patients
-    const patientsCount = await User.countDocuments({ role: "patient" });
-
-    // Count appointments
-    const appointmentsCount = await Appointment.countDocuments();
-
-    // Count pending appointments
-    const pendingAppointmentsCount = await Appointment.countDocuments({
-      status: "pending",
-    });
-
-    // Count services
-    const servicesCount = await Service.countDocuments();
-
-    // Count active services
-    const activeServicesCount = await Service.countDocuments({
-      isActive: true,
-    });
-
-    // Count today's appointments
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    const todayAppointmentsCount = await Appointment.countDocuments({
-      date: {
-        $gte: today,
-        $lt: tomorrow,
-      },
-    });
-
-    return NextResponse.json(
+    // Get appointments by status
+    const appointmentsByStatus = await Appointment.aggregate([
       {
-        stats: {
-          doctors: doctorsCount,
-          patients: patientsCount,
-          appointments: appointmentsCount,
-          pendingAppointments: pendingAppointmentsCount,
-          services: servicesCount,
-          activeServices: activeServicesCount,
-          todayAppointments: todayAppointmentsCount,
-        },
-        recentDoctors,
-      },
-      { status: 200 }
-    );
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    return NextResponse.json({
+      stats: {
+        totalAppointments,
+        totalLabs,
+        totalDoctors,
+        totalPatients,
+        recentAppointments,
+        appointmentsByStatus: appointmentsByStatus.reduce((acc, curr) => {
+          acc[curr._id] = curr.count;
+          return acc;
+        }, {})
+      }
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, must-revalidate',
+        'Pragma': 'no-cache'
+      }
+    });
   } catch (error) {
-    console.error("Get admin stats error:", error);
+    console.error('Stats API Error:', error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: 'Failed to fetch statistics' },
       { status: 500 }
     );
   }
 }
 
-// Apply authentication middleware (admin only)
-export const GET = withAuth(getStats, ["admin"]);
+export const GET = withAuth(handler, ['admin']);
