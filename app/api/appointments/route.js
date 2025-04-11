@@ -1,6 +1,8 @@
 // app/api/appointments/route.js
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+// Set a reasonable timeout
+export const maxDuration = 10; // 10 seconds timeout
 
 import { NextResponse } from "next/server";
 import connectToDatabase from "../../../lib/db";

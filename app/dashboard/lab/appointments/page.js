@@ -112,36 +112,31 @@ export default function LabAppointmentsManagement() {
 
   // Fetch appointments for the lab
   const fetchAppointments = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const token = localStorage.getItem("token");
-      const labId = localStorage.getItem("labId");
-
-      if (!token || !labId) {
-        toast.error("Please log in to access this page");
-        router.push("/auth/login");
-        return;
-      }
-
-      // Use the admin appointments endpoint
-      const response = await fetch(`/api/appointments?labId=${labId}`, {
+      const response = await fetch(`/api/appointments?labId=${labId}${
+        filterStatus ? `&status=${filterStatus}` : ''
+      }${filterDate ? `&date=${filterDate}` : ''}`, {
         headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.token}`,
         },
+        // Add timeout to fetch request
+        signal: AbortSignal.timeout(15000), // 15 seconds timeout
       });
 
       if (!response.ok) {
+        if (response.status === 504) {
+          throw new Error('Request timed out. Please try again.');
+        }
         const errorData = await response.json();
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        throw new Error(errorData.error || 'Failed to fetch appointments');
       }
 
       const data = await response.json();
-      // No need to filter by lab again since the API is already filtering
       setAppointments(data.appointments);
     } catch (error) {
-      console.error("Error fetching appointments:", error);
-      toast.error(error.message || "Failed to fetch appointments");
+      console.error('Error fetching appointments:', error);
+      toast.error(error.message || 'Failed to fetch appointments');
       setAppointments([]);
     } finally {
       setLoading(false);
