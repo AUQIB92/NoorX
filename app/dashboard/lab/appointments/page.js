@@ -42,6 +42,7 @@ export default function LabAppointmentsManagement() {
   const [filterDate, setFilterDate] = useState("");
   const [doctors, setDoctors] = useState([]);
   const [services, setServices] = useState([]);
+  const [labId, setLabId] = useState(null);
   const [appointmentFormData, setAppointmentFormData] = useState({
     status: "",
     date: "",
@@ -52,6 +53,17 @@ export default function LabAppointmentsManagement() {
     patientEmail: "",
     patientPhone: "",
   });
+
+  // Initialize labId from localStorage
+  useEffect(() => {
+    const storedLabId = localStorage.getItem("labId");
+    if (!storedLabId) {
+      toast.error("Please log in to access this page");
+      router.push("/auth/login");
+      return;
+    }
+    setLabId(storedLabId);
+  }, []);
 
   // Fetch doctors for the lab
   const fetchDoctors = async () => {
@@ -112,16 +124,27 @@ export default function LabAppointmentsManagement() {
 
   // Fetch appointments for the lab
   const fetchAppointments = async () => {
+    if (!labId) {
+      console.error("Lab ID not available");
+      return;
+    }
+
     setLoading(true);
     try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        toast.error("Please log in to access this page");
+        router.push("/auth/login");
+        return;
+      }
+
       const response = await fetch(`/api/appointments?labId=${labId}${
         filterStatus ? `&status=${filterStatus}` : ''
       }${filterDate ? `&date=${filterDate}` : ''}`, {
         headers: {
-          'Authorization': `Bearer ${session?.token}`,
+          'Authorization': `Bearer ${token}`,
         },
-        // Add timeout to fetch request
-        signal: AbortSignal.timeout(15000), // 15 seconds timeout
+        signal: AbortSignal.timeout(15000),
       });
 
       if (!response.ok) {
@@ -143,25 +166,14 @@ export default function LabAppointmentsManagement() {
     }
   };
 
-  // Update useEffect to fetch data
+  // Update useEffect to depend on labId
   useEffect(() => {
-    const initializePage = async () => {
-      setLoading(true);
-      try {
-        await Promise.all([
-          fetchAppointments(),
-          fetchDoctors(),
-          fetchServices()
-        ]);
-      } catch (error) {
-        console.error("Error initializing page:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    initializePage();
-  }, []);
+    if (labId) {
+      fetchAppointments();
+      fetchDoctors();
+      fetchServices();
+    }
+  }, [labId]);
 
   // Handle booking new appointment
   const handleBookAppointment = async (e) => {
