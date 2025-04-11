@@ -124,27 +124,28 @@ export default function LabAppointmentsManagement() {
 
   // Fetch appointments for the lab
   const fetchAppointments = async () => {
-    if (!labId) {
-      console.error("Lab ID not available");
-      return;
-    }
-
-    setLoading(true);
     try {
-      // Get token from localStorage
       const token = localStorage.getItem("token");
-      if (!token) {
-        toast.error("Please log in to access this page");
+      const currentLabId = localStorage.getItem("labId");
+
+      if (!token || !currentLabId) {
+        console.error("Missing authentication token or lab ID");
+        toast.error("Please log in again");
         router.push("/auth/login");
         return;
       }
 
-      console.log("Fetching appointments with token:", token ? "Token exists" : "No token");
-      console.log("Lab ID:", labId);
+      // Construct URL with URLSearchParams for proper encoding
+      const params = new URLSearchParams();
+      params.append('labId', currentLabId);
+      if (filterStatus) params.append('status', filterStatus);
+      if (filterDate) params.append('date', filterDate);
 
-      const response = await fetch(`/api/appointments?labId=${labId}${
-        filterStatus ? `&status=${filterStatus}` : ''
-      }${filterDate ? `&date=${filterDate}` : ''}`, {
+      const url = `/api/appointments?${params.toString()}`;
+      console.log('Fetching appointments from:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -154,16 +155,22 @@ export default function LabAppointmentsManagement() {
 
       if (!response.ok) {
         if (response.status === 401) {
-          // Token expired or invalid
+          localStorage.removeItem("token");
+          localStorage.removeItem("labId");
           toast.error("Session expired. Please log in again");
           router.push("/auth/login");
           return;
         }
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to fetch appointments');
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
+      if (!Array.isArray(data.appointments)) {
+        console.error('Invalid appointments data:', data);
+        throw new Error('Invalid response format');
+      }
+
       setAppointments(data.appointments);
     } catch (error) {
       console.error('Error fetching appointments:', error);
@@ -176,13 +183,23 @@ export default function LabAppointmentsManagement() {
 
   // Initialize data and set up auto-refresh
   useEffect(() => {
-    if (labId) {
-      fetchAppointments();
-      // Set up auto-refresh every 30 seconds
-      const interval = setInterval(fetchAppointments, 30000);
-      return () => clearInterval(interval);
+    const token = localStorage.getItem("token");
+    const currentLabId = localStorage.getItem("labId");
+
+    if (!token || !currentLabId) {
+      toast.error("Please log in to access this page");
+      router.push("/auth/login");
+      return;
     }
-  }, [labId, filterStatus, filterDate]);
+
+    fetchAppointments();
+
+    // Set up auto-refresh every 30 seconds
+    const interval = setInterval(fetchAppointments, 30000);
+
+    // Cleanup interval on unmount
+    return () => clearInterval(interval);
+  }, [filterStatus, filterDate]);
 
   // Handle booking new appointment
   const handleBookAppointment = async (e) => {
