@@ -131,6 +131,7 @@ export default function LabAppointmentsManagement() {
 
     setLoading(true);
     try {
+      // Get token from localStorage
       const token = localStorage.getItem("token");
       if (!token) {
         toast.error("Please log in to access this page");
@@ -138,18 +139,25 @@ export default function LabAppointmentsManagement() {
         return;
       }
 
+      console.log("Fetching appointments with token:", token ? "Token exists" : "No token");
+      console.log("Lab ID:", labId);
+
       const response = await fetch(`/api/appointments?labId=${labId}${
         filterStatus ? `&status=${filterStatus}` : ''
       }${filterDate ? `&date=${filterDate}` : ''}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
         },
-        signal: AbortSignal.timeout(15000),
+        cache: 'no-store'
       });
 
       if (!response.ok) {
-        if (response.status === 504) {
-          throw new Error('Request timed out. Please try again.');
+        if (response.status === 401) {
+          // Token expired or invalid
+          toast.error("Session expired. Please log in again");
+          router.push("/auth/login");
+          return;
         }
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to fetch appointments');
@@ -166,14 +174,15 @@ export default function LabAppointmentsManagement() {
     }
   };
 
-  // Update useEffect to depend on labId
+  // Initialize data and set up auto-refresh
   useEffect(() => {
     if (labId) {
       fetchAppointments();
-      fetchDoctors();
-      fetchServices();
+      // Set up auto-refresh every 30 seconds
+      const interval = setInterval(fetchAppointments, 30000);
+      return () => clearInterval(interval);
     }
-  }, [labId]);
+  }, [labId, filterStatus, filterDate]);
 
   // Handle booking new appointment
   const handleBookAppointment = async (e) => {
