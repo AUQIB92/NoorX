@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import connectToDatabase from "../../../../lib/db";
 import Appointment from "../../../../models/Appointment";
+import Lab from "../../../../models/Lab";
 import { withAuth } from "../../../../middleware/auth";
 
 // Get a specific appointment

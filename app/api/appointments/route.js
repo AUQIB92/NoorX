@@ -1,6 +1,6 @@
 // app/api/appointments/route.js
-export const dynamic = 'force-dynamic';
-export const runtime = 'nodejs';
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 // Set a reasonable timeout
 export const maxDuration = 30; // Increase timeout for Vercel
 
@@ -10,6 +10,7 @@ import Appointment from "@/models/Appointment";
 import User from "@/models/User";
 import Service from "@/models/Service";
 import LabService from "@/models/LabService";
+import Lab from "@/models/Lab";
 import { withAuth } from "@/middleware/auth";
 import DoctorSlot from "@/models/DoctorSlot";
 import { sendBookingConfirmation } from "@/lib/twilio";
@@ -20,12 +21,12 @@ import mongoose from "mongoose";
 async function getAppointments(req, context) {
   try {
     // Log the start of the request
-    console.log('Starting appointment fetch request...');
-    console.log('Request URL:', req.url);
-    
+    console.log("Starting appointment fetch request...");
+    console.log("Request URL:", req.url);
+
     // Try to connect to the database with retries
     try {
-      console.log('Connecting to database...');
+      console.log("Connecting to database...");
       await dbConnect();
       console.log("Database connection successful");
     } catch (dbError) {
@@ -37,14 +38,14 @@ async function getAppointments(req, context) {
     }
 
     const { user } = context;
-    
+
     // Check if req.url is defined before creating URL object
     let status = null;
     let doctorId = null;
     let date = null;
     let labId = null;
     let searchParams = null;
-    
+
     if (req.url) {
       try {
         const url = new URL(req.url);
@@ -98,13 +99,13 @@ async function getAppointments(req, context) {
       // Create date range for the entire day
       const startDate = new Date(date);
       startDate.setHours(0, 0, 0, 0);
-      
+
       const endDate = new Date(date);
       endDate.setHours(23, 59, 59, 999);
-      
+
       query.date = {
         $gte: startDate,
-        $lte: endDate
+        $lte: endDate,
       };
     }
 
@@ -128,7 +129,7 @@ async function getAppointments(req, context) {
     console.log("Executing appointment query with:", {
       query,
       user_role: user.role,
-      user_id: user.id
+      user_id: user.id,
     });
 
     // Execute the database query with a timeout
@@ -138,9 +139,9 @@ async function getAppointments(req, context) {
       .populate({
         path: "service_id",
         select: "name price duration",
-        model: query.service_model || 'Service'  // Use the correct model based on service_model
+        model: query.service_model || "Service", // Use the correct model based on service_model
       })
-      .populate("lab_id", "name")  // Add lab population
+      .populate("lab_id", "name") // Add lab population
       .sort({ date: 1, time: 1 });
 
     // Race between the query and the timeout
@@ -255,31 +256,36 @@ async function createAppointment(req, context) {
     }
 
     // Check if service exists and set service model
-    let serviceModel = 'Service';
+    let serviceModel = "Service";
     const service = await Service.findById(service_id);
     if (!service) {
       // If not found in regular services, check if it's a lab service
       const labService = await LabService.findById(service_id);
       if (!labService) {
         console.error(`Service not found with ID: ${service_id}`);
-        return NextResponse.json({ error: "Service not found" }, { status: 404 });
+        return NextResponse.json(
+          { error: "Service not found" },
+          { status: 404 }
+        );
       }
-      
+
       // For lab services, lab_id should be required
       if (booked_by === "labAdmin" && !lab_id) {
-        console.error("Lab ID is required for lab services with lab admin booking");
+        console.error(
+          "Lab ID is required for lab services with lab admin booking"
+        );
         return NextResponse.json(
           { error: "Lab ID is required for this service" },
           { status: 400 }
         );
       }
-      
+
       // If labService exists, we can continue with the appointment creation
       console.log(`Using lab service: ${labService.name}`);
-      serviceModel = 'LabService';
+      serviceModel = "LabService";
     } else {
       console.log(`Using regular service: ${service.name}`);
-      
+
       // For regular services, we shouldn't have a lab_id unless it's a lab admin booking
       if (lab_id && booked_by !== "labAdmin") {
         console.warn(`Lab ID provided for non-lab service: ${service.name}`);
@@ -313,22 +319,22 @@ async function createAppointment(req, context) {
 
     // Parse the time to get hours and minutes
     let hour24, minutes;
-    
+
     // Check if time is already in 24h format (HH:MM)
     if (/^\d{1,2}:\d{2}$/.test(time)) {
       // Already in 24h format
-      const [hours, mins] = time.split(':').map(Number);
+      const [hours, mins] = time.split(":").map(Number);
       hour24 = hours;
       minutes = mins;
     } else {
       // Try to parse 12h format (e.g., "3:30 PM")
       const timeMatch = time.match(/(\d+):(\d+)\s*([AP]M)?/i);
-      
+
       if (timeMatch) {
         const hours = Number(timeMatch[1]);
         minutes = Number(timeMatch[2]);
-        const isPM = timeMatch[3] && timeMatch[3].toUpperCase() === 'PM';
-        
+        const isPM = timeMatch[3] && timeMatch[3].toUpperCase() === "PM";
+
         // Convert to 24-hour format
         hour24 = hours;
         if (isPM && hours < 12) hour24 += 12;
@@ -336,7 +342,9 @@ async function createAppointment(req, context) {
       } else {
         // Invalid time format
         return NextResponse.json(
-          { error: "Invalid time format. Please use HH:MM or H:MM AM/PM format" },
+          {
+            error: "Invalid time format. Please use HH:MM or H:MM AM/PM format",
+          },
           { status: 400 }
         );
       }
@@ -419,22 +427,31 @@ async function createAppointment(req, context) {
       payment_amount,
       booked_by,
       // If booked by admin or labAdmin, mark as confirmed
-      status: (booked_by === "admin" || booked_by === "labAdmin") ? "confirmed" : "pending",
+      status:
+        booked_by === "admin" || booked_by === "labAdmin"
+          ? "confirmed"
+          : "pending",
       // If payment method is cash, mark payment as pending or paid for labAdmin
       // If payment method is online and payment_id is provided, mark as completed
       payment_status:
-        booked_by === "labAdmin" ? "paid" :
-        payment_method === "cash" ? "pending" :
-        payment_method === "online" && payment_id ? "completed" : "pending",
+        booked_by === "labAdmin"
+          ? "paid"
+          : payment_method === "cash"
+          ? "pending"
+          : payment_method === "online" && payment_id
+          ? "completed"
+          : "pending",
       payment_date:
         payment_method === "cash" ||
         (payment_method === "online" && !payment_id)
           ? null
           : new Date(),
       // Add Razorpay payment details if provided
-      payment_id: payment_method === "cash" ? "N/A" : (payment_id || null),
-      razorpay_order_id: payment_method === "cash" ? "N/A" : (razorpay_order_id || null),
-      razorpay_signature: payment_method === "cash" ? "N/A" : (razorpay_signature || null),
+      payment_id: payment_method === "cash" ? "N/A" : payment_id || null,
+      razorpay_order_id:
+        payment_method === "cash" ? "N/A" : razorpay_order_id || null,
+      razorpay_signature:
+        payment_method === "cash" ? "N/A" : razorpay_signature || null,
       // Only include lab_id if it's provided and applicable
       ...(lab_id ? { lab_id } : {}),
     });
@@ -451,7 +468,10 @@ async function createAppointment(req, context) {
         await validSlot.save();
       } else {
         // For weekly recurring slots, create a new specific date slot that is marked as booked
-        console.log("Creating booked specific date slot for weekly slot", validSlot._id);
+        console.log(
+          "Creating booked specific date slot for weekly slot",
+          validSlot._id
+        );
 
         // First, check if a specific date slot already exists for this doctor, date, and time
         const specificDateObj = new Date(date);
@@ -465,7 +485,9 @@ async function createAppointment(req, context) {
         });
 
         if (existingSpecificSlot) {
-          console.log(`Found existing specific date slot ${existingSpecificSlot._id}, updating it`);
+          console.log(
+            `Found existing specific date slot ${existingSpecificSlot._id}, updating it`
+          );
           existingSpecificSlot.is_available = false;
           existingSpecificSlot.booked_by = actualPatientId;
           existingSpecificSlot.booking_time = new Date();
@@ -493,7 +515,7 @@ async function createAppointment(req, context) {
 
     // Get service details for SMS/email notifications
     let serviceForNotifications;
-    if (serviceModel === 'LabService') {
+    if (serviceModel === "LabService") {
       serviceForNotifications = await LabService.findById(service_id);
     } else {
       serviceForNotifications = service;
@@ -503,7 +525,7 @@ async function createAppointment(req, context) {
     try {
       // Get service name based on service model
       let serviceName;
-      if (serviceModel === 'LabService') {
+      if (serviceModel === "LabService") {
         try {
           const labService = await LabService.findById(service_id);
           serviceName = labService?.name || "Lab Service";
@@ -540,10 +562,10 @@ async function createAppointment(req, context) {
         const populatedDoctor = await User.findById(doctor_id).select(
           "name specialization"
         );
-        
+
         // Get service details based on service model
         let populatedService;
-        if (serviceModel === 'LabService') {
+        if (serviceModel === "LabService") {
           try {
             populatedService = await LabService.findById(service_id).select(
               "name price duration"
