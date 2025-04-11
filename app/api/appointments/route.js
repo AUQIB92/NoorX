@@ -11,7 +11,7 @@ import Lab from "@/models/Lab";
 import User from "@/models/User";
 import Service from "@/models/Service";
 import LabService from "@/models/LabService";
-import Lab from "@/models/Lab";
+
 import { withAuth } from "@/middleware/auth";
 import DoctorSlot from "@/models/DoctorSlot";
 import { sendBookingConfirmation } from "@/lib/twilio";
