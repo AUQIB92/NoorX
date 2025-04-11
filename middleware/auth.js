@@ -13,11 +13,19 @@ export function withAuth(handler, allowedRoles = []) {
       headers.set('Pragma', 'no-cache');
       headers.set('Expires', '0');
 
+      // Log request details
+      console.log('Auth middleware processing request:', {
+        url: req.url,
+        method: req.method,
+        allowedRoles
+      });
+
       // Get the authorization header
       const authHeader = req.headers.get('authorization');
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        console.error('No token provided or invalid token format');
         return new NextResponse(
-          JSON.stringify({ error: 'No token provided' }),
+          JSON.stringify({ error: 'Authentication required' }),
           { 
             status: 401,
             headers: {
@@ -30,12 +38,48 @@ export function withAuth(handler, allowedRoles = []) {
 
       // Extract and verify the token
       const token = authHeader.split(' ')[1];
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      let decoded;
+      try {
+        if (!process.env.JWT_SECRET) {
+          console.error('JWT_SECRET is not defined in environment variables');
+          throw new Error('Server configuration error');
+        }
+        decoded = jwt.verify(token, process.env.JWT_SECRET);
+        console.log('Token verified successfully');
+      } catch (error) {
+        console.error('Token verification failed:', error.message);
+        if (error.name === 'TokenExpiredError') {
+          return new NextResponse(
+            JSON.stringify({ error: 'Token has expired' }),
+            { 
+              status: 401,
+              headers: {
+                'Content-Type': 'application/json',
+                ...Object.fromEntries(headers)
+              }
+            }
+          );
+        }
+        return new NextResponse(
+          JSON.stringify({ error: 'Invalid token' }),
+          { 
+            status: 401,
+            headers: {
+              'Content-Type': 'application/json',
+              ...Object.fromEntries(headers)
+            }
+          }
+        );
+      }
 
       // Check if user has required role
       if (allowedRoles.length > 0 && !allowedRoles.includes(decoded.role)) {
+        console.error('User role not authorized:', {
+          userRole: decoded.role,
+          allowedRoles
+        });
         return new NextResponse(
-          JSON.stringify({ error: 'Unauthorized access' }),
+          JSON.stringify({ error: 'You do not have permission to access this resource' }),
           { 
             status: 403,
             headers: {
@@ -50,12 +94,13 @@ export function withAuth(handler, allowedRoles = []) {
       context = {
         ...context,
         user: {
-          id: decoded.userId,
+          id: decoded.userId || decoded.id, // Handle both formats
           role: decoded.role,
         },
       };
 
       // Call the handler with the authenticated context
+      console.log('Authentication successful, proceeding to handler');
       const response = await handler(req, context);
       
       // Add cache control headers to the response
@@ -71,11 +116,12 @@ export function withAuth(handler, allowedRoles = []) {
       });
 
     } catch (error) {
-      console.error('Auth middleware error:', error);
+      console.error("Auth middleware error:", error);
 
+      // Handle specific error types
       if (error.name === 'JsonWebTokenError') {
         return new NextResponse(
-          JSON.stringify({ error: 'Invalid token' }),
+          JSON.stringify({ error: 'Invalid token format' }),
           { 
             status: 401,
             headers: {
@@ -88,7 +134,7 @@ export function withAuth(handler, allowedRoles = []) {
 
       if (error.name === 'TokenExpiredError') {
         return new NextResponse(
-          JSON.stringify({ error: 'Token expired' }),
+          JSON.stringify({ error: 'Token has expired' }),
           { 
             status: 401,
             headers: {
@@ -100,7 +146,10 @@ export function withAuth(handler, allowedRoles = []) {
       }
 
       return new NextResponse(
-        JSON.stringify({ error: 'Authentication error' }),
+        JSON.stringify({ 
+          error: 'Authentication error',
+          message: process.env.NODE_ENV === 'development' ? error.message : undefined
+        }),
         { 
           status: 500,
           headers: {

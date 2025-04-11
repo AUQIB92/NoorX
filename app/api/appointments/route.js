@@ -2,33 +2,31 @@
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 // Set a reasonable timeout
-export const maxDuration = 10; // 10 seconds timeout
+export const maxDuration = 30; // Increase timeout for Vercel
 
 import { NextResponse } from "next/server";
-import connectToDatabase from "../../../lib/db";
-import Appointment from "../../../models/Appointment";
-import User from "../../../models/User";
-import Service from "../../../models/Service";
-import LabService from "../../../models/LabService";
-import { withAuth } from "../../../middleware/auth";
-import DoctorSlot from "../../../models/DoctorSlot";
-import { sendBookingConfirmation } from "../../../lib/twilio";
-import { sendBookingConfirmationEmail } from "../../../lib/emailService";
+import dbConnect from "@/lib/dbConnect";
+import Appointment from "@/models/Appointment";
+import User from "@/models/User";
+import Service from "@/models/Service";
+import LabService from "@/models/LabService";
+import { withAuth } from "@/middleware/auth";
+import DoctorSlot from "@/models/DoctorSlot";
+import { sendBookingConfirmation } from "@/lib/twilio";
+import { sendBookingConfirmationEmail } from "@/lib/emailService";
 import mongoose from "mongoose";
 
 // Get appointments based on user role
 async function getAppointments(req, context) {
   try {
-    console.log(
-      "getAppointments called with user:",
-      context?.user?.id,
-      "role:",
-      context?.user?.role
-    );
-
+    // Log the start of the request
+    console.log('Starting appointment fetch request...');
+    console.log('Request URL:', req.url);
+    
     // Try to connect to the database with retries
     try {
-      await connectToDatabase();
+      console.log('Connecting to database...');
+      await dbConnect();
       console.log("Database connection successful");
     } catch (dbError) {
       console.error("Database connection error in getAppointments:", dbError);
@@ -187,7 +185,7 @@ async function getAppointments(req, context) {
 // Book a new appointment
 async function createAppointment(req, context) {
   try {
-    await connectToDatabase();
+    await dbConnect();
 
     // Ensure context and user exist
     if (!context || !context.user) {
