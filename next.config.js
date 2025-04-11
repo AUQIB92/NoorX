@@ -3,7 +3,6 @@ const nextConfig = {
   reactStrictMode: true,
   experimental: {
     ppr: false,
-    serverActions: true,
   },
   async headers() {
     return [

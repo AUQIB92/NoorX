@@ -7,6 +7,7 @@ export const maxDuration = 30; // Increase timeout for Vercel
 import { NextResponse } from "next/server";
 import dbConnect from "@/lib/dbConnect";
 import Appointment from "@/models/Appointment";
+import Lab from "@/models/Lab";
 import User from "@/models/User";
 import Service from "@/models/Service";
 import LabService from "@/models/LabService";
@@ -22,6 +23,10 @@ async function getAppointments(req, context) {
     // Log the start of the request
     console.log('Starting appointment fetch request...');
     console.log('Request URL:', req.url);
+    console.log('User context:', {
+      role: context?.user?.role,
+      id: context?.user?.id
+    });
     
     // Try to connect to the database with retries
     try {
@@ -38,36 +43,80 @@ async function getAppointments(req, context) {
 
     const { user } = context;
     
-    // Check if req.url is defined before creating URL object
+    // Parse URL parameters
     let status = null;
     let doctorId = null;
     let date = null;
     let labId = null;
-    let searchParams = null;
     
     if (req.url) {
       try {
         const url = new URL(req.url);
-        searchParams = url.searchParams;
-        status = searchParams.get("status");
-        doctorId = searchParams.get("doctor");
-        date = searchParams.get("date");
-        labId = searchParams.get("labId");
+        status = url.searchParams.get("status");
+        doctorId = url.searchParams.get("doctor");
+        date = url.searchParams.get("date");
+        labId = url.searchParams.get("labId");
+        
+        console.log('URL parameters:', { status, doctorId, date, labId });
       } catch (urlError) {
         console.error("Error parsing URL:", urlError);
-        // Continue with null values for the parameters
       }
     }
 
     let query = {};
 
-    // Add labId filter if provided in query params
-    if (labId) {
+    // Handle lab-related queries
+    if (user.role === 'labAdmin') {
+      if (!labId) {
+        console.error('Lab ID is required for labAdmin role');
+        return NextResponse.json(
+          { error: "Lab ID is required" },
+          { status: 400 }
+        );
+      }
       try {
         query.lab_id = new mongoose.Types.ObjectId(labId);
-        console.log("Added lab filter to query:", labId);
+        console.log("Added lab filter for labAdmin:", labId);
+        
+        // Verify lab exists and user has access
+        const lab = await Lab.findById(query.lab_id);
+        if (!lab) {
+          console.error('Lab not found:', labId);
+          return NextResponse.json(
+            { error: "Lab not found" },
+            { status: 404 }
+          );
+        }
+        
+        // Verify user has access to this lab
+        if (!lab.owner) {
+          console.error('Lab has no owner assigned:', labId);
+          return NextResponse.json(
+            { error: "Lab ownership verification failed" },
+            { status: 403 }
+          );
+        }
+
+        if (lab.owner.toString() !== user.id) {
+          console.error('User does not have access to this lab. User:', user.id, 'Owner:', lab.owner.toString());
+          return NextResponse.json(
+            { error: "Unauthorized access to lab" },
+            { status: 403 }
+          );
+        }
       } catch (error) {
-        console.error("Invalid lab ID format:", labId);
+        console.error('Invalid lab ID format:', labId, error);
+        return NextResponse.json(
+          { error: "Invalid lab ID format" },
+          { status: 400 }
+        );
+      }
+    } else if (labId) {
+      // For non-labAdmin roles, still add lab filter if provided
+      try {
+        query.lab_id = new mongoose.Types.ObjectId(labId);
+      } catch (error) {
+        console.error('Invalid lab ID format:', labId, error);
         return NextResponse.json(
           { error: "Invalid lab ID format" },
           { status: 400 }
@@ -80,10 +129,10 @@ async function getAppointments(req, context) {
       query.status = status;
     }
 
-    // Add doctor filter if provided
-    if (doctorId) {
+    // Add doctor filter if provided or if user is a doctor
+    if (doctorId || user.role === 'doctor') {
       try {
-        query.doctor_id = new mongoose.Types.ObjectId(doctorId);
+        query.doctor_id = new mongoose.Types.ObjectId(doctorId || user.id);
       } catch (error) {
         console.error("Invalid doctor ID format:", doctorId);
         return NextResponse.json(
@@ -95,86 +144,43 @@ async function getAppointments(req, context) {
 
     // Add date filter if provided
     if (date) {
-      // Create date range for the entire day
       const startDate = new Date(date);
       startDate.setHours(0, 0, 0, 0);
-      
       const endDate = new Date(date);
       endDate.setHours(23, 59, 59, 999);
-      
-      query.date = {
-        $gte: startDate,
-        $lte: endDate
-      };
+      query.date = { $gte: startDate, $lte: endDate };
+    }
+
+    // Filter for patient role
+    if (user.role === 'patient') {
+      query.patient_id = new mongoose.Types.ObjectId(user.id);
     }
 
     console.log("Final query:", JSON.stringify(query, null, 2));
 
-    // Filter appointments based on user role (unless specific filters are provided)
-    if (!doctorId && user.role === "patient") {
-      query.patient_id = user.id;
-      console.log("Filtering appointments for patient:", user.id);
-    } else if (!doctorId && user.role === "doctor") {
-      query.doctor_id = user.id;
-      console.log("Filtering appointments for doctor:", user.id);
-    }
-
-    // Set a timeout for the database query
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("Database query timeout")), 15000)
-    );
-
-    // Log the query before execution
-    console.log("Executing appointment query with:", {
-      query,
-      user_role: user.role,
-      user_id: user.id
-    });
-
-    // Execute the database query with a timeout
-    const queryPromise = Appointment.find(query)
-      .populate("patient_id", "name mobile")
+    // Execute the database query with proper population
+    const appointments = await Appointment.find(query)
+      .populate("patient_id", "name email mobile")
       .populate("doctor_id", "name specialization")
-      .populate({
-        path: "service_id",
-        select: "name price duration",
-        model: query.service_model || 'Service'  // Use the correct model based on service_model
-      })
-      .populate("lab_id", "name")  // Add lab population
-      .sort({ date: 1, time: 1 });
+      .populate("lab_id", "name location")
+      .populate("service_id", "name price duration")
+      .sort({ date: -1, time: 1 })
+      .lean();
 
-    // Race between the query and the timeout
-    const appointments = await Promise.race([queryPromise, timeoutPromise]);
-    console.log("Raw appointments from DB:", JSON.stringify(appointments));
     console.log(`Found ${appointments.length} appointments`);
 
-    // Log sample appointment if any exist
-    if (appointments.length > 0) {
-      console.log("Sample appointment:", JSON.stringify(appointments[0]));
-    }
+    return NextResponse.json({ 
+      appointments,
+      user_role: user.role // Include user role for frontend reference
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, must-revalidate',
+        'Pragma': 'no-cache'
+      }
+    });
 
-    return NextResponse.json({ appointments }, { status: 200 });
   } catch (error) {
     console.error("Get appointments error:", error);
-
-    // Handle specific error types
-    if (error.code === "ECONNRESET") {
-      return NextResponse.json(
-        { error: "Connection reset. Please try again." },
-        { status: 503 }
-      );
-    } else if (error.message === "Database query timeout") {
-      return NextResponse.json(
-        { error: "Request timed out. Please try again." },
-        { status: 504 }
-      );
-    } else if (error.code === "ERR_INVALID_URL") {
-      return NextResponse.json(
-        { error: "Invalid URL provided. Please check your request." },
-        { status: 400 }
-      );
-    }
-
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
@@ -211,14 +217,18 @@ async function createAppointment(req, context) {
       razorpay_order_id, // Razorpay order ID
       razorpay_signature, // Razorpay signature
       lab_id, // Lab ID for lab appointments
+      service_type = "regular", // Type of service (regular or lab)
+      slot_id, // Slot ID for regular appointments
     } = await req.json();
 
-    console.log("Appointment creation request with payment details:", {
+    console.log("Appointment creation request with details:", {
       payment_method,
       payment_id,
       razorpay_order_id,
       razorpay_signature,
       lab_id,
+      service_type,
+      slot_id,
     });
 
     // Determine the patient ID (either from request or from authenticated user)
@@ -411,6 +421,7 @@ async function createAppointment(req, context) {
       patient_id: actualPatientId,
       doctor_id,
       service_id,
+      service_type,
       service_model: serviceModel,
       date: new Date(date),
       time,
@@ -423,7 +434,7 @@ async function createAppointment(req, context) {
       // If payment method is cash, mark payment as pending or paid for labAdmin
       // If payment method is online and payment_id is provided, mark as completed
       payment_status:
-        booked_by === "labAdmin" ? "paid" :
+        booked_by === "labAdmin" ? "completed" :
         payment_method === "cash" ? "pending" :
         payment_method === "online" && payment_id ? "completed" : "pending",
       payment_date:
@@ -435,8 +446,9 @@ async function createAppointment(req, context) {
       payment_id: payment_method === "cash" ? "N/A" : (payment_id || null),
       razorpay_order_id: payment_method === "cash" ? "N/A" : (razorpay_order_id || null),
       razorpay_signature: payment_method === "cash" ? "N/A" : (razorpay_signature || null),
-      // Only include lab_id if it's provided and applicable
-      ...(lab_id ? { lab_id } : {}),
+      // Include slot_id for regular appointments and lab_id for lab appointments
+      ...(service_type === "regular" && slot_id ? { slot_id } : {}),
+      ...(service_type === "lab" && lab_id ? { lab_id } : {}),
     });
 
     await appointment.save();
@@ -601,8 +613,8 @@ async function createAppointment(req, context) {
 }
 
 // Export the handler functions with authentication middleware
-export const GET = withAuth(getAppointments);
-export const POST = withAuth(createAppointment);
+export const GET = withAuth(getAppointments, ['admin', 'lab', 'labAdmin', 'doctor', 'patient']);
+export const POST = withAuth(createAppointment, ['admin', 'lab', 'labAdmin', 'doctor', 'patient']);
 
 // Add additional error handling around the middleware
 export async function GET_errorHandled(req) {

@@ -31,6 +31,7 @@ export default function AdminBookAppointment() {
   const [selectedService, setSelectedService] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedTime, setSelectedTime] = useState("");
+  const [selectedSlotId, setSelectedSlotId] = useState("");
   const [notes, setNotes] = useState("");
   const [availableSlots, setAvailableSlots] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -346,13 +347,10 @@ export default function AdminBookAppointment() {
             // Create a slot object with additional metadata
             return {
               id: slot._id,
-              time: `${formattedHour}:${minute
-                .toString()
-                .padStart(2, "0")} ${ampm}`,
+              time: `${formattedHour}:${minute.toString().padStart(2, "0")} ${ampm}`,
               rawTime: `${hours}:${minutes}`,
               isAdminAdded: slot.date !== null,
-              period:
-                hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening",
+              period: hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening",
             };
           });
 
@@ -400,7 +398,8 @@ export default function AdminBookAppointment() {
       !selectedDoctor ||
       !selectedService ||
       !selectedDate ||
-      !selectedTime
+      !selectedTime ||
+      !selectedSlotId
     ) {
       toast.error("Please complete all required fields");
       return;
@@ -408,7 +407,7 @@ export default function AdminBookAppointment() {
 
     setIsSubmitting(true);
     try {
-      // First, verify that the slot is still available (hasn't been booked by someone else)
+      // First, verify that the slot is still available
       const token = localStorage.getItem("token");
       const verifyRes = await fetch(
         `/api/appointments?doctor=${selectedDoctor}&date=${selectedDate}`,
@@ -430,7 +429,15 @@ export default function AdminBookAppointment() {
       if (!selectedSlot) {
         throw new Error("Selected time slot information not found");
       }
+
+      if (!selectedSlotId) {
+        throw new Error("No slot ID found for the selected time");
+      }
       
+      console.log("Debug - Selected Slot:", selectedSlot);
+      console.log("Debug - Selected Slot ID:", selectedSlotId);
+      console.log("Debug - Available Slots:", availableSlots);
+
       // Get the most up-to-date booked times
       const bookedTimes = verifyData.appointments
         .filter((app) => app.status === "pending" || app.status === "confirmed")
@@ -439,7 +446,7 @@ export default function AdminBookAppointment() {
       console.log("Raw selected time:", selectedSlot.rawTime);
       console.log("Currently booked times:", bookedTimes);
 
-      // Check if the selected time is now booked (comparing the 24h format times)
+      // Check if the selected time is now booked
       const isTimeBooked = bookedTimes.some(bookedTime => {
         return bookedTime === selectedSlot.rawTime.split(':').slice(0, 2).join(':');
       });
@@ -454,34 +461,34 @@ export default function AdminBookAppointment() {
         return;
       }
 
-      console.log("Appointment creation request with payment details:", {
+      // Create appointment with service_type and slot_id
+      const appointmentData = {
+        patient_id: selectedPatient,
+        doctor_id: selectedDoctor,
+        service_id: selectedService,
+        service_type: "regular",
+        date: selectedDate,
+        time: selectedSlot.rawTime,
+        notes,
         payment_method: "cash",
+        payment_amount: serviceDetails?.price || 0,
+        booked_by: "admin",
         payment_id: "N/A",
         razorpay_order_id: "N/A",
-        razorpay_signature: "N/A"
-      });
+        razorpay_signature: "N/A",
+        slot_id: selectedSlotId
+      };
 
-      // Proceed with booking - use the raw time (24h format) for the API
+      console.log("Debug - Final Appointment Data:", appointmentData);
+
+      // Proceed with booking
       const res = await fetch("/api/appointments", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          patient_id: selectedPatient, // Admin books for a patient
-          doctor_id: selectedDoctor,
-          service_id: selectedService,
-          date: selectedDate,
-          time: selectedSlot.rawTime, // Use 24h format time for consistency
-          notes,
-          payment_method: "cash", // Default to cash for admin bookings
-          payment_amount: serviceDetails?.price || 0,
-          booked_by: "admin", // Indicate this was booked by admin
-          payment_id: "N/A", // Use N/A for cash payments
-          razorpay_order_id: "N/A", // Use N/A for cash payments
-          razorpay_signature: "N/A", // Use N/A for cash payments
-        }),
+        body: JSON.stringify(appointmentData),
       });
 
       const data = await res.json();
@@ -636,6 +643,15 @@ export default function AdminBookAppointment() {
     e.preventDefault();
     setIsSearching(true);
     fetchPatients(searchQuery);
+  };
+
+  // Add handleTimeSelect function
+  const handleTimeSelect = (time, slotId) => {
+    console.log("handleTimeSelect - Selected time:", time);
+    console.log("handleTimeSelect - Selected slot ID:", slotId);
+    console.log("handleTimeSelect - Available slots:", availableSlots);
+    setSelectedTime(time);
+    setSelectedSlotId(slotId);
   };
 
   // Render step content
@@ -1304,7 +1320,7 @@ export default function AdminBookAppointment() {
                   <TimeSlotPicker 
                     availableSlots={availableSlots}
                     selectedTime={selectedTime}
-                    onTimeSelect={(time, slotId) => setSelectedTime(time)}
+                    onTimeSelect={handleTimeSelect}
                   />
                 ) : (
                   <div className="bg-gray-50 rounded-lg p-6 text-center">

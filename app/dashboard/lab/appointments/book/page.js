@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import DashboardLayout from "../../../../../components/DashboardLayout";
 import {
@@ -33,6 +33,7 @@ export default function LabBookAppointment() {
   const [selectedService, setSelectedService] = useState(null);
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedTime, setSelectedTime] = useState("");
+  const [selectedSlotId, setSelectedSlotId] = useState("");
   const [notes, setNotes] = useState("");
   const [availableSlots, setAvailableSlots] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -59,13 +60,55 @@ export default function LabBookAppointment() {
   maxDate.setDate(maxDate.getDate() + 30);
   const maxDateStr = maxDate.toISOString().split("T")[0];
 
+  // Add a slots cache to prevent redundant API calls
+  const [slotsCache, setSlotsCache] = useState({});
+
+  // Add cache for patient search results
+  const [patientSearchCache, setPatientSearchCache] = useState({});
+  const [searchTimeout, setSearchTimeout] = useState(null);
+
   useEffect(() => {
     fetchLabDoctors();
     fetchLabServices();
+    
+    // Cleanup function to run on unmount
+    return () => {
+      // Clear any pending timeouts
+      if (searchTimeout) {
+        clearTimeout(searchTimeout);
+      }
+    };
   }, []);
+  
+  useEffect(() => {
+    let isMounted = true;
+    
+    if (selectedDate && selectedDoctor) {
+      checkAvailableSlots()
+        .then(() => {
+          // Only update state if component is still mounted
+          if (!isMounted) return;
+        })
+        .catch(error => {
+          if (!isMounted) return;
+          console.error("Error checking slots:", error);
+        });
+    }
+    
+    // Cleanup function to prevent state updates after unmount
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedDate, selectedDoctor]);
 
   // Fetch doctors for this lab
   const fetchLabDoctors = async () => {
+    // Don't fetch if we already have doctors data
+    if (doctors.length > 0) {
+      setIsLoading(false);
+      return;
+    }
+    
     try {
       setIsLoading(true);
       const token = localStorage.getItem("token");
@@ -81,6 +124,7 @@ export default function LabBookAppointment() {
         headers: {
           Authorization: `Bearer ${token}`,
         },
+        cache: 'default' // Allow caching since doctor data doesn't change frequently
       });
 
       if (!response.ok) {
@@ -99,6 +143,11 @@ export default function LabBookAppointment() {
 
   // Fetch services for this lab
   const fetchLabServices = async () => {
+    // Don't fetch if we already have services data
+    if (services.length > 0) {
+      return;
+    }
+    
     try {
       const token = localStorage.getItem("token");
       const labId = localStorage.getItem("labId");
@@ -111,6 +160,7 @@ export default function LabBookAppointment() {
         headers: {
           Authorization: `Bearer ${token}`,
         },
+        cache: 'default' // Allow caching since service data doesn't change frequently
       });
 
       if (!response.ok) {
@@ -125,10 +175,19 @@ export default function LabBookAppointment() {
     }
   };
 
-  // Search for patients by mobile
+  // Search for patients by mobile with debouncing and caching
   const searchPatients = async (query) => {
     if (!query.trim()) {
       setPatients([]);
+      return;
+    }
+
+    // Check cache first
+    if (patientSearchCache[query]) {
+      console.log("Using cached patient search results");
+      setPatients(patientSearchCache[query]);
+      setIsLoadingPatients(false);
+      setIsSearching(false);
       return;
     }
 
@@ -140,6 +199,7 @@ export default function LabBookAppointment() {
         headers: {
           Authorization: `Bearer ${token}`,
         },
+        cache: 'no-store'
       });
 
       if (!response.ok) {
@@ -147,13 +207,47 @@ export default function LabBookAppointment() {
       }
 
       const data = await response.json();
-      setPatients(data.patients || []);
+      const results = data.patients || [];
+      
+      // Cache the results
+      setPatientSearchCache(prev => ({
+        ...prev,
+        [query]: results
+      }));
+      
+      setPatients(results);
     } catch (error) {
       console.error("Error searching patients:", error);
       toast.error(error.message || "Failed to search patients");
       setPatients([]);
     } finally {
       setIsLoadingPatients(false);
+      setIsSearching(false);
+    }
+  };
+
+  // Handle search input change with debouncing
+  const handleSearchChange = (e) => {
+    const query = e.target.value;
+    setSearchQuery(query);
+    
+    // Clear any existing timeout
+    if (searchTimeout) {
+      clearTimeout(searchTimeout);
+    }
+    
+    // Only search if at least 3 characters
+    if (query.length >= 3) {
+      setIsSearching(true);
+      
+      // Set a new timeout to delay the API call
+      const newTimeout = setTimeout(() => {
+        searchPatients(query);
+      }, 300); // 300ms debounce delay
+      
+      setSearchTimeout(newTimeout);
+    } else {
+      setPatients([]);
       setIsSearching(false);
     }
   };
@@ -228,22 +322,9 @@ export default function LabBookAppointment() {
     });
   };
 
-  // Handle search input change
-  const handleSearchChange = (e) => {
-    const query = e.target.value;
-    setSearchQuery(query);
-    
-    // Only search if at least 3 characters
-    if (query.length >= 3) {
-      setIsSearching(true);
-      searchPatients(query);
-    } else {
-      setPatients([]);
-    }
-  };
-
   // Handle patient selection
   const selectPatient = (patient) => {
+    if (selectedPatient && selectedPatient._id === patient._id) return; // Prevent redundant updates
     setSelectedPatient(patient);
     setSearchQuery("");
     setPatients([]);
@@ -252,247 +333,197 @@ export default function LabBookAppointment() {
 
   // Handle doctor selection
   const selectDoctor = (doctor) => {
+    if (selectedDoctor && selectedDoctor._id === doctor._id) return; // Prevent redundant updates
     setSelectedDoctor(doctor);
+    
+    // Reset date and time when doctor changes
+    setSelectedDate("");
+    setSelectedTime("");
+    setSelectedSlotId("");
+    setAvailableSlots([]);
+    
     setStep(3); // Move to service selection
   };
 
   // Handle service selection
   const selectService = (service) => {
+    if (selectedService && selectedService._id === service._id) return; // Prevent redundant updates
     setSelectedService(service);
     setStep(4); // Move to time slot selection
   };
 
-  // Generate default slots for the selected doctor and date
-  const generateDefaultSlots = async () => {
-    if (!selectedDoctor || !selectedDate) {
-      toast.error("Please select a doctor and date first");
-      return;
-    }
-
-    try {
-      setIsCheckingSlots(true);
-      const token = localStorage.getItem("token");
-      const labId = localStorage.getItem("labId");
-      
-      // Log user information and request details for debugging
-      console.log("Attempting to generate slots with:");
-      console.log("- Doctor ID:", selectedDoctor._id);
-      console.log("- Lab ID:", labId);
-      console.log("- Token exists:", !!token);
-
-      // Now that labAdmin users have permission, we can directly call the slots API
-      const response = await fetch(
-        `/api/slots`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            doctor_id: selectedDoctor._id
-          }),
-        }
-      );
-
-      console.log("Slot generation response status:", response.status);
-      
-      // Try to get the response body even if there's an error
-      let responseBody;
-      try {
-        responseBody = await response.json();
-        console.log("Response body:", responseBody);
-      } catch (e) {
-        console.error("Failed to parse response:", e);
-        responseBody = { error: "Failed to parse response" };
-      }
-
-      if (!response.ok) {
-        // If we get a 403, it might be that the API route wasn't properly updated
-        if (response.status === 403) {
-          console.log("Permission denied. Using fallback approach...");
-          await fetchAvailableSlotsForDate(selectedDate);
-          return;
-        }
-        
-        throw new Error(responseBody.error || `Failed to generate slots: ${response.status}`);
-      }
-      
-      if (responseBody.message === "Slots already exist for this doctor") {
-        toast.info("Slots already exist for this doctor. Showing available slots...");
-      } else {
-        toast.success("Time slots generated successfully");
-      }
-      
-      // Now fetch available slots for the selected date
-      await fetchAvailableSlotsForDate(selectedDate);
-    } catch (error) {
-      console.error("Error generating slots:", error);
-      toast.error(error.message || "Failed to generate slots");
-      
-      // Even if generating slots fails, try to fetch existing slots anyway
-      try {
-        await fetchAvailableSlotsForDate(selectedDate);
-      } catch (innerError) {
-        console.error("Failed to fetch slots after generation error:", innerError);
-      }
-    } finally {
-      setIsCheckingSlots(false);
-    }
-  };
-
-  // Fetch available slots for a specific date
-  const fetchAvailableSlotsForDate = async (date) => {
-    if (!selectedDoctor || !date) {
-      setAvailableSlots([]);
-      return;
-    }
-
-    try {
-      setIsCheckingSlots(true);
-      const token = localStorage.getItem("token");
-      
-      const formattedDate = date; // The date is already in YYYY-MM-DD format
-      const dayOfWeek = new Date(date).getDay(); // 0 = Sunday, 1 = Monday, etc.
-      const days = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
-      const dayName = days[dayOfWeek];
-
-      console.log("Fetching slots for doctor:", selectedDoctor._id, "day:", dayName);
-      console.log("URL being called:", `/api/slots?doctor_id=${selectedDoctor._id}&day=${dayName}&is_available=true`);
-
-      // First, get the doctor's slots for this day of week
-      const slotsResponse = await fetch(
-        `/api/slots?doctor_id=${selectedDoctor._id}&day=${dayName}&is_available=true`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      console.log("Slots API response status:", slotsResponse.status);
-      
-      let slotsData;
-      try {
-        slotsData = await slotsResponse.json();
-        console.log("Slots data:", slotsData);
-      } catch (e) {
-        console.error("Failed to parse slots response:", e);
-        throw new Error("Failed to parse slots response");
-      }
-
-      if (!slotsResponse.ok) {
-        throw new Error(slotsData.error || `Failed to fetch doctor slots: ${slotsResponse.status}`);
-      }
-      
-      if (!slotsData.slots || slotsData.slots.length === 0) {
-        console.log("No slots found for this doctor on", dayName);
-        setAvailableSlots([]);
-        return;
-      }
-      
-      // Then, get booked appointments for this date and doctor
-      console.log("Fetching appointments for date:", formattedDate);
-      
-      const appointmentsResponse = await fetch(
-        `/api/appointments?doctor=${selectedDoctor._id}&date=${formattedDate}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      console.log("Appointments API response status:", appointmentsResponse.status);
-      
-      let appointmentsData;
-      try {
-        appointmentsData = await appointmentsResponse.json();
-        console.log("Appointments data:", appointmentsData);
-      } catch (e) {
-        console.error("Failed to parse appointments response:", e);
-        throw new Error("Failed to parse appointments response");
-      }
-
-      if (!appointmentsResponse.ok) {
-        throw new Error(appointmentsData.error || "Failed to fetch appointments");
-      }
-      
-      // Extract booked times from appointments that are pending or confirmed
-      const bookedTimes = appointmentsData.appointments
-        .filter(app => app.status === "pending" || app.status === "confirmed")
-        .map(app => app.time);
-
-      console.log("Booked times:", bookedTimes);
-
-      // Process slots and filter out booked ones
-      const availableSlotObjects = slotsData.slots
-        .filter(slot => {
-          // Check if this slot's time is not in bookedTimes
-          const slotTime24h = slot.start_time;
-          console.log("Checking slot time:", slotTime24h);
-          
-          const isBooked = bookedTimes.some(bookedTime => {
-            const bookedTime24h = bookedTime.split(':').slice(0, 2).join(':');
-            console.log("  Comparing with booked time:", bookedTime24h);
-            return bookedTime24h === slotTime24h;
-          });
-          
-          console.log("  Slot is available:", !isBooked);
-          return !isBooked;
-        })
-        .map(slot => {
-          // Convert 24h time to 12h time and create a structured slot object
-          const [hours, minutes] = slot.start_time.split(':');
-          const hour = parseInt(hours);
-          const minute = parseInt(minutes);
-          const ampm = hour >= 12 ? 'PM' : 'AM';
-          const formattedHour = hour % 12 || 12;
-
-          return {
-            id: slot._id,
-            time: `${formattedHour}:${minute.toString().padStart(2, '0')} ${ampm}`,
-            rawTime: slot.start_time,
-            isAdminAdded: slot.date !== null,
-            period: hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening',
-          };
-        });
-
-      console.log("Final available slot objects:", availableSlotObjects);
-      setAvailableSlots(availableSlotObjects);
-    } catch (error) {
-      console.error("Error fetching available slots:", error);
-      toast.error(error.message || "Failed to fetch available slots");
-      setAvailableSlots([]);
-    } finally {
-      setIsCheckingSlots(false);
-    }
-  };
-
-  // Check available slots (modified to use the new function)
-  const checkAvailableSlots = () => {
-    fetchAvailableSlotsForDate(selectedDate);
-  };
-
-  // Handle date selection
+  // Handle date selection - update to use checkAvailableSlots
   const handleDateChange = (e) => {
     const date = e.target.value;
+    if (date === selectedDate) return; // Prevent redundant updates
+    
     setSelectedDate(date);
     setSelectedTime(""); // Reset time when date changes
+    setSelectedSlotId(""); // Reset slot ID when date changes
     
-    if (date) {
-      fetchAvailableSlotsForDate(date);
+    if (date && selectedDoctor) {
+      checkAvailableSlots();
     } else {
       setAvailableSlots([]);
     }
   };
 
-  // Handle time selection
-  const handleTimeSelection = (time) => {
+  // Handle time selection with memoization to prevent re-renders
+  const handleTimeSelection = useCallback((time, slotId) => {
+    if (time === selectedTime) return; // Prevent redundant updates
+    console.log("Selected time:", time, "Selected slot ID:", slotId);
     setSelectedTime(time);
+    setSelectedSlotId(slotId);
+  }, [selectedTime]);
+
+  // Check available slots - replacing the simplified version with the same approach as admin
+  const checkAvailableSlots = async () => {
+    if (!selectedDoctor || !selectedDate) {
+      setAvailableSlots([]);
+      return Promise.resolve();
+    }
+
+    // Check if we have cached results for this doctor/date combination
+    const cacheKey = `${selectedDoctor._id}_${selectedDate}`;
+    if (slotsCache[cacheKey]) {
+      console.log("Using cached slots data");
+      setAvailableSlots(slotsCache[cacheKey]);
+      return Promise.resolve();
+    }
+
+    setIsCheckingSlots(true);
+    // Clear available slots while checking to prevent displaying old data
+    setAvailableSlots([]);
+    console.log("Checking available slots for date:", selectedDate);
+
+    try {
+      // First, get all booked appointments for this date and doctor
+      const token = localStorage.getItem("token");
+      const labId = localStorage.getItem("labId");
+      
+      if (!labId) {
+        toast.error("Lab ID not found. Please log in again.");
+        return Promise.reject(new Error("Lab ID not found"));
+      }
+      
+      const bookingsRes = await fetch(
+        `/api/appointments?doctor=${selectedDoctor._id}&date=${selectedDate}&labId=${labId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      let bookedTimes = [];
+      if (bookingsRes.ok) {
+        const bookingsData = await bookingsRes.json();
+        // Extract booked times in 24h format (HH:MM)
+        bookedTimes = bookingsData.appointments
+          .filter(app => app.status === "pending" || app.status === "confirmed")
+          .map(app => app.time.split(':').slice(0, 2).join(':'));
+        
+        console.log("Booked time slots:", bookedTimes);
+      }
+
+      // Fetch all slots for this doctor and date directly from the API
+      const slotsRes = await fetch(
+        `/api/doctors/${selectedDoctor._id}/slots?date=${selectedDate}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          // Add cache control headers
+          cache: 'no-store'
+        }
+      );
+
+      let availableTimeSlots = [];
+
+      if (slotsRes.ok) {
+        const slotsData = await slotsRes.json();
+        console.log("Slots data received:", slotsData);
+
+        // Process all slots (both regular weekly and admin-added)
+        availableTimeSlots = slotsData.slots
+          .filter((slot) => {
+            // Check if the slot is available and not already booked
+            const slotTime = slot.start_time.split(':').slice(0, 2).join(':');
+            const isAvailable = slot.is_available && !slot.booked_by;
+            const isNotBooked = !bookedTimes.includes(slotTime);
+            return isAvailable && isNotBooked;
+          })
+          .map((slot) => {
+            // Convert 24-hour format to 12-hour format for display
+            const [hours, minutes] = slot.start_time.split(":");
+            const hour = parseInt(hours);
+            const minute = parseInt(minutes);
+            const ampm = hour >= 12 ? "PM" : "AM";
+            const formattedHour = hour % 12 || 12;
+
+            // Create a slot object with additional metadata
+            return {
+              id: slot._id,
+              time: `${formattedHour}:${minute.toString().padStart(2, "0")} ${ampm}`,
+              rawTime: `${hours}:${minutes}`,
+              isAdminAdded: slot.date !== null,
+              period: hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening",
+            };
+          });
+
+        // Sort slots by time
+        availableTimeSlots.sort((a, b) => {
+          const timeA = a.rawTime.split(":");
+          const timeB = b.rawTime.split(":");
+          const hourA = parseInt(timeA[0]);
+          const hourB = parseInt(timeB[0]);
+          if (hourA !== hourB) return hourA - hourB;
+          return parseInt(timeA[1]) - parseInt(timeB[1]);
+        });
+        
+        // Deduplicate slots by time
+        const uniqueSlotsMap = new Map();
+        availableTimeSlots.forEach(slot => {
+          if (!uniqueSlotsMap.has(slot.time)) {
+            uniqueSlotsMap.set(slot.time, slot);
+          }
+        });
+        
+        const uniqueTimeSlots = Array.from(uniqueSlotsMap.values());
+
+        console.log("Final available time slots:", uniqueTimeSlots);
+        
+        // Cache the results
+        setSlotsCache(prev => ({
+          ...prev,
+          [cacheKey]: uniqueTimeSlots
+        }));
+        
+        setAvailableSlots(uniqueTimeSlots);
+      } else {
+        console.error("Failed to fetch slots from API");
+        toast.error("Failed to load available slots");
+        setAvailableSlots([]);
+      }
+
+      // Return a resolved promise at the end
+      return Promise.resolve();
+    } catch (error) {
+      console.error("Error checking available slots:", error);
+      toast.error("Failed to load available slots");
+      setAvailableSlots([]);
+      return Promise.reject(error);
+    } finally {
+      setIsCheckingSlots(false);
+    }
   };
 
-  // Book the appointment
+  // Book the appointment with optimized error handling
   const bookAppointment = async () => {
+    if (isSubmitting) return; // Prevent multiple submissions
+    
     try {
-      if (!selectedPatient || !selectedDoctor || !selectedService || !selectedDate || !selectedTime) {
+      if (!selectedPatient || !selectedDoctor || !selectedService || !selectedDate || !selectedTime || !selectedSlotId) {
         toast.error("Please complete all required selections");
         return;
       }
@@ -515,64 +546,100 @@ export default function LabBookAppointment() {
         return;
       }
 
-      // Get the selected slot object
+      // First, verify that the slot is still available
+      const verifyRes = await fetch(
+        `/api/appointments?doctor=${selectedDoctor._id}&date=${selectedDate}&labId=${labId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          cache: 'no-store' // Prevent caching for this critical verification
+        }
+      );
+
+      if (!verifyRes.ok) {
+        throw new Error("Failed to verify slot availability");
+      }
+
+      const verifyData = await verifyRes.json();
+      
+      // Get the raw time (HH:MM) format from the selected time (12h format)
       const selectedSlot = availableSlots.find(slot => slot.time === selectedTime);
       if (!selectedSlot) {
         throw new Error("Selected time slot information not found");
       }
 
-      // Debug service and other data
-      console.log("Selected patient:", selectedPatient);
-      console.log("Selected doctor:", selectedDoctor);
-      console.log("Selected service:", selectedService);
-      console.log("Service ID type:", typeof selectedService._id);
-      console.log("Service ID value:", selectedService._id);
-      console.log("Service ID string:", String(selectedService._id));
-      console.log("Service ID Object:", {id: selectedService._id});
-      console.log("Selected date:", selectedDate);
-      console.log("Selected time object:", selectedSlot);
-      console.log("Token exists:", !!token);
-      console.log("Token length:", token.length);
-      console.log("Token prefix:", token.substring(0, 15) + "...");
+      if (!selectedSlotId) {
+        throw new Error("No slot ID found for the selected time");
+      }
       
+      // Get the most up-to-date booked times
+      const bookedTimes = verifyData.appointments
+        .filter((app) => app.status === "pending" || app.status === "confirmed")
+        .map((app) => app.time.split(':').slice(0, 2).join(':'));
+        
+      // Check if the selected time is now booked
+      const isTimeBooked = bookedTimes.some(bookedTime => {
+        return bookedTime === selectedSlot.rawTime.split(':').slice(0, 2).join(':');
+      });
+
+      if (isTimeBooked) {
+        toast.error(
+          "This slot has just been booked by someone else. Please select another time."
+        );
+        // Refresh available slots
+        checkAvailableSlots();
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Create appointment with service_type and slot_id
       const appointmentData = {
         patient_id: selectedPatient._id,
         doctor_id: selectedDoctor._id,
         service_id: String(selectedService._id),
+        service_type: "lab",
         date: selectedDate,
         time: selectedSlot.rawTime,
         notes: notes || "",
         lab_id: labId,
         booked_by: "labAdmin",
         payment_method: "cash",
-        payment_status: "paid",
+        payment_status: "completed",
         payment_amount: selectedService.price || 0,
         payment_id: "N/A",
         razorpay_order_id: "N/A",
-        razorpay_signature: "N/A"
+        razorpay_signature: "N/A",
+        slot_id: selectedSlotId // Include the selected slot ID
       };
-
-      console.log("Sending appointment data:", JSON.stringify(appointmentData, null, 2));
-      console.log("Authorization header being sent:", `Bearer ${token}`);
 
       const response = await fetch("/api/appointments", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
+          "Authorization": `Bearer ${token}`,
+          "Cache-Control": "no-cache, no-store, must-revalidate"
         },
         body: JSON.stringify(appointmentData),
       });
 
-      console.log("API response status:", response.status, response.statusText);
       const data = await response.json();
-      console.log("Appointment creation response:", data);
 
       if (!response.ok) {
         throw new Error(data.error || "Failed to book appointment");
       }
 
       toast.success("Appointment booked successfully");
+      
+      // Update the cache to remove the booked slot
+      const cacheKey = `${selectedDoctor._id}_${selectedDate}`;
+      if (slotsCache[cacheKey]) {
+        const updatedSlots = slotsCache[cacheKey].filter(slot => slot.id !== selectedSlotId);
+        setSlotsCache(prev => ({
+          ...prev,
+          [cacheKey]: updatedSlots
+        }));
+      }
       
       // Redirect to appointments page
       setTimeout(() => {
@@ -982,112 +1049,174 @@ export default function LabBookAppointment() {
     );
   };
 
-  // Update useEffect to fetch slots when doctor or date changes
-  useEffect(() => {
-    if (selectedDate && selectedDoctor) {
-      fetchAvailableSlotsForDate(selectedDate);
-    }
-  }, [selectedDate, selectedDoctor]);
-
   // Step 4: Select Time Slot Content
   const renderSelectTimeSlotStep = () => {
     return (
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-xl font-semibold mb-6">Step 4: Choose Appointment Slot</h2>
-        
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Select Date
+      <div className="space-y-6">
+        <h2 className="text-xl font-semibold text-gray-800">
+          Step 4: Choose Appointment Slot
+        </h2>
+
+        {/* Appointment Details Summary */}
+        <div className="bg-gradient-to-r from-blue-50 to-cyan-50 p-6 rounded-xl shadow-sm border border-blue-100">
+          <h3 className="font-medium text-blue-800 mb-4 flex items-center">
+            <FaCalendarAlt className="h-5 w-5 mr-2" />
+            Appointment Details
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex items-center space-x-3">
+              <div className="flex-shrink-0">
+                <FaUser className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-600">Patient</p>
+                <p className="text-gray-900">{selectedPatient?.name}</p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-3">
+              <div className="flex-shrink-0">
+                <FaUserMd className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-600">Doctor</p>
+                <p className="text-gray-900">{selectedDoctor?.name}</p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-3">
+              <div className="flex-shrink-0">
+                <FaFlask className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-600">Service</p>
+                <p className="text-gray-900">{selectedService?.name}</p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-3">
+              <div className="flex-shrink-0">
+                <FaClock className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-600">Duration</p>
+                <p className="text-gray-900">{selectedService?.duration} minutes</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Date and Time Selection */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Date Selection */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <label
+              htmlFor="date"
+              className="block text-sm font-medium text-gray-700 mb-3 flex items-center"
+            >
+              <FaCalendarAlt className="h-5 w-5 mr-2 text-blue-500" />
+              Select Date
+            </label>
+            <div className="relative">
+              <input
+                type="date"
+                id="date"
+                value={selectedDate}
+                onChange={handleDateChange}
+                min={minDate}
+                max={maxDateStr}
+                className="w-full p-3 pl-4 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 shadow-sm transition-all"
+              />
+            </div>
+
+            {selectedDate && (
+              <div className="mt-3 bg-blue-50 p-3 rounded-lg">
+                <p className="text-sm text-blue-800 flex items-center">
+                  <FaCalendarAlt className="h-4 w-4 mr-1" />
+                  {formatDate(selectedDate)}
+                </p>
+              </div>
+            )}
+
+            {selectedDoctor && !availableSlots.length && selectedDate && !isCheckingSlots && (
+              <div className="mt-3 bg-red-50 p-3 rounded-lg flex items-center">
+                <FaCalendarAlt className="h-5 w-5 text-red-500 mr-2" />
+                <p className="text-red-700 text-sm font-medium">
+                  No available slots on this day. Please try another date.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Time Selection */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <label
+              htmlFor="time"
+              className="block text-sm font-medium text-gray-700 mb-3 flex items-center"
+            >
+              <FaClock className="h-5 w-5 mr-2 text-blue-500" />
+              Select Time
+            </label>
+
+            {isCheckingSlots ? (
+              <div className="flex items-center justify-center h-40 bg-gray-50 rounded-lg">
+                <div className="flex flex-col items-center">
+                  <FaSpinner className="animate-spin h-8 w-8 text-blue-500 mb-2" />
+                  <p className="text-sm text-gray-500">
+                    Checking available slots...
+                  </p>
+                </div>
+              </div>
+            ) : selectedDate ? (
+              <TimeSlotPicker
+                availableSlots={availableSlots}
+                selectedTime={selectedTime}
+                onTimeSelect={handleTimeSelection}
+              />
+            ) : (
+              <div className="bg-gray-50 rounded-lg p-6 text-center">
+                <FaCalendarAlt className="mx-auto text-gray-400 text-3xl mb-3" />
+                <h3 className="text-lg font-medium text-gray-700">Select a date</h3>
+                <p className="text-gray-500 mt-2">
+                  Please select a date to view available appointment slots.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Additional Notes */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <label
+            htmlFor="notes"
+            className="block text-sm font-medium text-gray-700 mb-3"
+          >
+            Additional Notes (Optional)
           </label>
-          <input
-            type="date"
-            className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm 
-              focus:outline-none focus:ring-teal-500 focus:border-teal-500"
-            min={minDate}
-            max={maxDateStr}
-            value={selectedDate}
-            onChange={handleDateChange}
+          <textarea
+            id="notes"
+            rows="3"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Add any special instructions or notes for the appointment"
+            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 shadow-sm transition-all"
           />
         </div>
-        
-        {selectedDate ? (
-          <>
-            <div className="mb-6">
-              <div className="flex justify-between items-center mb-2">
-                <h3 className="text-md font-medium">Available Time Slots</h3>
-                <button
-                  type="button"
-                  onClick={generateDefaultSlots}
-                  disabled={isCheckingSlots}
-                  className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md
-                    text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 
-                    focus:ring-offset-2 focus:ring-teal-500"
-                >
-                  <FaPlus className="mr-1" size={12} />
-                  Generate Slots
-                </button>
-              </div>
-              
-              {isCheckingSlots ? (
-                <div className="text-center py-4">
-                  <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-teal-500"></div>
-                  <span className="ml-2 text-gray-600">Checking available slots...</span>
-                </div>
-              ) : (
-                <>
-                  {availableSlots.length === 0 ? (
-                    <div className="bg-yellow-50 p-4 rounded-md">
-                      <p className="text-yellow-700">
-                        No slots available for this date. Click "Generate Slots" to create default time slots or select another date.
-                      </p>
-                    </div>
-                  ) : (
-                    <TimeSlotPicker 
-                      availableSlots={availableSlots}
-                      selectedTime={selectedTime}
-                      onTimeSelect={(time) => handleTimeSelection(time)}
-                    />
-                  )}
-                </>
-              )}
-            </div>
-            
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Additional Notes (Optional)
-              </label>
-              <textarea
-                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm 
-                  focus:outline-none focus:ring-teal-500 focus:border-teal-500"
-                rows="3"
-                placeholder="Add any special instructions or notes for the appointment"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-              ></textarea>
-            </div>
-          </>
-        ) : (
-          <div className="bg-blue-50 p-4 rounded-md mb-6">
-            <p className="text-blue-700">
-              Please select a date to view available time slots.
-            </p>
-          </div>
-        )}
-        
-        <div className="mt-8 flex justify-between">
+
+        {/* Navigation Buttons */}
+        <div className="flex justify-between mt-8">
           <button
+            type="button"
             onClick={goToPrevStep}
-            className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 
-              bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500
-              flex items-center"
+            className="flex items-center px-5 py-2.5 bg-white border border-gray-300 rounded-lg shadow-sm text-gray-700 font-medium transition-all hover:bg-gray-50 hover:border-gray-400"
           >
             <FaArrowLeft className="mr-2" /> Back
           </button>
           <button
+            type="button"
             onClick={goToNextStep}
-            className="px-6 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white 
-              bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 
-              flex items-center"
+            className={`flex items-center px-6 py-2.5 rounded-lg shadow-md font-medium transition-all transform hover:scale-105 ${
+              !selectedDate || !selectedTime
+                ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                : "bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700"
+            }`}
             disabled={!selectedDate || !selectedTime}
           >
             Next <FaArrowRight className="ml-2" />

@@ -6,7 +6,6 @@ import dbConnect from "@/lib/dbConnect";
 import { withAuth } from "@/middleware/auth";
 import Appointment from "@/models/Appointment";
 import Lab from "@/models/Lab";
-import Doctor from "@/models/Doctor";
 import User from "@/models/User";
 
 async function handler(req) {
@@ -22,7 +21,7 @@ async function handler(req) {
     ] = await Promise.all([
       Appointment.countDocuments(),
       Lab.countDocuments(),
-      Doctor.countDocuments(),
+      User.countDocuments({ role: 'doctor' }),
       User.countDocuments({ role: 'patient' })
     ]);
 
@@ -45,6 +44,13 @@ async function handler(req) {
       }
     ]);
 
+    // Get recent doctors
+    const recentDoctors = await User.find({ role: 'doctor' })
+      .select('name email specialization')
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .lean();
+
     return NextResponse.json({
       stats: {
         totalAppointments,
@@ -52,6 +58,7 @@ async function handler(req) {
         totalDoctors,
         totalPatients,
         recentAppointments,
+        recentDoctors,
         appointmentsByStatus: appointmentsByStatus.reduce((acc, curr) => {
           acc[curr._id] = curr.count;
           return acc;

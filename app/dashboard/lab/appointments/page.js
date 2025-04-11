@@ -192,6 +192,9 @@ export default function LabAppointmentsManagement() {
       return;
     }
 
+    // Fetch initial data
+    fetchDoctors();
+    fetchServices();
     fetchAppointments();
 
     // Set up auto-refresh every 30 seconds
@@ -327,10 +330,7 @@ export default function LabAppointmentsManagement() {
       ? new Date(appointment.date).toISOString().split('T')[0] === filterDate
       : true;
 
-    // Check if the doctor is from this lab
-    const isLabDoctor = doctors.some(doctor => doctor._id === appointment.doctor_id?._id);
-
-    return matchesSearch && matchesStatus && matchesDate && isLabDoctor;
+    return matchesSearch && matchesStatus && matchesDate;
   });
 
   return (

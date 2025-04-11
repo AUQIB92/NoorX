@@ -7,36 +7,78 @@ const labSchema = new mongoose.Schema(
       required: [true, "Please provide a lab name"],
       trim: true,
     },
-    address: {
+    email: {
       type: String,
-      required: [true, "Please provide an address"],
+      required: [true, "Please provide an email"],
+      unique: true,
+      trim: true,
+      lowercase: true,
     },
     phone: {
       type: String,
       required: [true, "Please provide a phone number"],
     },
-    email: {
+    location: {
       type: String,
-      required: [true, "Please provide an email"],
-      unique: true,
-      lowercase: true,
+      required: [true, "Please provide a location"],
+    },
+    address: {
+      type: String,
+      required: [true, "Please provide an address"],
     },
     description: {
       type: String,
       default: "",
     },
-    openingHours: {
-      type: String,
-      required: [true, "Please provide opening hours"],
-    },
+    services: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Service"
+    }],
+    doctors: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User"
+    }],
     isActive: {
       type: Boolean,
       default: true,
     },
-    labAdmin: {
+    openingHours: {
+      monday: { open: String, close: String },
+      tuesday: { open: String, close: String },
+      wednesday: { open: String, close: String },
+      thursday: { open: String, close: String },
+      friday: { open: String, close: String },
+      saturday: { open: String, close: String },
+      sunday: { open: String, close: String }
+    },
+    ratings: [{
+      user: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User"
+      },
+      rating: {
+        type: Number,
+        min: 1,
+        max: 5
+      },
+      review: String,
+      date: {
+        type: Date,
+        default: Date.now
+      }
+    }],
+    averageRating: {
+      type: Number,
+      default: 0
+    },
+    images: [{
+      url: String,
+      caption: String
+    }],
+    owner: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+      required: true
     },
     createdAt: {
       type: Date,
@@ -49,8 +91,38 @@ const labSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
   }
 );
+
+// Add indexes
+labSchema.index({ name: 1 });
+labSchema.index({ location: 1 });
+labSchema.index({ isActive: 1 });
+
+// Calculate average rating before saving
+labSchema.pre('save', function(next) {
+  if (this.ratings && this.ratings.length > 0) {
+    this.averageRating = this.ratings.reduce((acc, curr) => acc + curr.rating, 0) / this.ratings.length;
+  }
+  next();
+});
+
+// Virtual for total number of ratings
+labSchema.virtual('totalRatings').get(function() {
+  return this.ratings ? this.ratings.length : 0;
+});
+
+// Virtual for total number of doctors
+labSchema.virtual('totalDoctors').get(function() {
+  return this.doctors ? this.doctors.length : 0;
+});
+
+// Virtual for total number of services
+labSchema.virtual('totalServices').get(function() {
+  return this.services ? this.services.length : 0;
+});
 
 // Create index for location field
 labSchema.index({ location: "2dsphere" });

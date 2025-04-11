@@ -11,20 +11,25 @@ const appointmentSchema = new mongoose.Schema({
     ref: "User",
     required: true,
   },
-  service_id: {
-    type: mongoose.Schema.Types.ObjectId,
-    refPath: 'service_model',
-    required: true,
-  },
-  service_model: {
-    type: String,
-    enum: ['Service', 'LabService'],
-    default: 'Service'
-  },
   lab_id: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Lab",
+    required: function() {
+      // lab_id is required only for lab services
+      return this.service_type === "lab";
+    },
     default: null,
+  },
+  service_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Service",
+    required: true,
+  },
+  service_type: {
+    type: String,
+    enum: ["regular", "lab"],
+    required: true,
+    default: "regular"
   },
   date: {
     type: Date,
@@ -41,17 +46,17 @@ const appointmentSchema = new mongoose.Schema({
   },
   payment_status: {
     type: String,
-    enum: ["pending", "completed", "refunded", "failed", "paid"],
+    enum: ["pending", "completed", "refunded"],
     default: "pending",
   },
   payment_amount: {
     type: Number,
-    default: 0,
+    required: true,
   },
   payment_method: {
     type: String,
-    enum: ["cash", "online", "insurance", ""],
-    default: "",
+    enum: ["cash", "card", "insurance"],
+    default: "cash",
   },
   payment_date: {
     type: Date,
@@ -79,6 +84,15 @@ const appointmentSchema = new mongoose.Schema({
     type: String,
     default: "",
   },
+  slot_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "DoctorSlot",
+    required: function() {
+      // slot_id is required only for regular services
+      return this.service_type === "regular";
+    },
+    default: null,
+  },
   createdAt: {
     type: Date,
     default: Date.now,
@@ -87,6 +101,8 @@ const appointmentSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+}, {
+  timestamps: true
 });
 
 // Update the updatedAt field on save
@@ -94,6 +110,14 @@ appointmentSchema.pre("save", function (next) {
   this.updatedAt = Date.now();
   next();
 });
+
+// Add indexes for common queries
+appointmentSchema.index({ patient_id: 1, status: 1 });
+appointmentSchema.index({ doctor_id: 1, status: 1 });
+appointmentSchema.index({ lab_id: 1, status: 1 });
+appointmentSchema.index({ date: 1 });
+appointmentSchema.index({ status: 1 });
+appointmentSchema.index({ payment_status: 1 });
 
 const Appointment =
   mongoose.models.Appointment ||
