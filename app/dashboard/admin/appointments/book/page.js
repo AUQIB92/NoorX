@@ -277,24 +277,27 @@ export default function AdminBookAppointment() {
 
   const checkAvailableSlots = async () => {
     if (!selectedDoctor || !selectedDate) {
-      setIsCheckingSlots(false);
+      setAvailableSlots([]);
       return;
     }
 
-    setIsCheckingSlots(true);
-    // Clear available slots while checking to prevent displaying old data
+    setIsLoading(true);
+    // Clear available slots while checking
     setAvailableSlots([]);
-    console.log("Checking available slots for date:", selectedDate);
+    console.log("Checking available slots for doctor:", selectedDoctor, "date:", selectedDate);
 
     try {
       // First, get all booked appointments for this date and doctor
       const token = localStorage.getItem("token");
+      
       const bookingsRes = await fetch(
         `/api/appointments?doctor=${selectedDoctor}&date=${selectedDate}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
+            "Cache-Control": "no-cache",
           },
+          cache: 'no-store'
         }
       );
 
@@ -306,62 +309,139 @@ export default function AdminBookAppointment() {
           .filter(app => app.status === "pending" || app.status === "confirmed")
           .map(app => app.time.split(':').slice(0, 2).join(':'));
         
-        console.log("Booked time slots:", bookedTimes);
+        console.log("Already booked time slots:", bookedTimes);
+      } else {
+        console.warn("Failed to fetch existing bookings. Will continue but may show already booked slots.");
       }
 
       // Fetch all slots for this doctor and date directly from the API
-      // The API now handles filtering out booked slots
-      const slotsRes = await fetch(
-        `/api/doctors/${selectedDoctor}/slots?date=${selectedDate}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+      // Maximum retry attempts
+      const maxRetries = 2;
+      let retryCount = 0;
+      let success = false;
+      let slotsData = null;
+      const timestamp = new Date().getTime();
+      
+      while (retryCount <= maxRetries && !success) {
+        try {
+          console.log(`Attempt ${retryCount + 1} to fetch slots...`);
+          
+          const slotsRes = await fetch(
+            `/api/doctors/${selectedDoctor}/slots?date=${selectedDate}&_t=${timestamp}&r=${retryCount}`,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache"
+              },
+              // Ensure we're not using cached data
+              cache: "no-store",
+              // Add a timeout
+              signal: AbortSignal.timeout(8000) // 8 second timeout
+            }
+          );
+
+          if (slotsRes.ok) {
+            slotsData = await slotsRes.json();
+            console.log("Slots data received:", slotsData);
+            success = true;
+          } else {
+            const errorData = await slotsRes.json().catch(() => ({ error: "Unknown error" }));
+            console.error(`Attempt ${retryCount + 1} failed:`, errorData);
+            
+            // Specific error handling based on status
+            if (slotsRes.status === 400) {
+              // Client error - no need to retry
+              toast.error(`Failed to fetch slots: ${errorData.error || "Invalid request"}`);
+              break;
+            } else if (slotsRes.status === 401 || slotsRes.status === 403) {
+              // Authentication error - refresh token or redirect to login
+              toast.error("Session expired. Please log in again.");
+              router.push("/auth/login");
+              break;
+            }
+            
+            // Retry for server errors (5xx)
+            retryCount++;
+            
+            if (retryCount <= maxRetries) {
+              const backoffTime = retryCount * 1000;
+              console.log(`Retrying in ${backoffTime}ms...`);
+              await new Promise(resolve => setTimeout(resolve, backoffTime));
+            }
+          }
+        } catch (fetchError) {
+          console.error(`Fetch error on attempt ${retryCount + 1}:`, fetchError);
+          retryCount++;
+          
+          // Display specific error message for timeout
+          if (fetchError.name === 'AbortError') {
+            toast.error("Request timed out. Please try again.");
+          }
+          
+          if (retryCount <= maxRetries) {
+            const backoffTime = retryCount * 1000;
+            console.log(`Retrying in ${backoffTime}ms...`);
+            await new Promise(resolve => setTimeout(resolve, backoffTime));
+          }
         }
-      );
+      }
 
       let availableTimeSlots = [];
 
-      if (slotsRes.ok) {
-        const slotsData = await slotsRes.json();
-        console.log("Slots data received:", slotsData);
-
-        // Process all slots (both regular weekly and admin-added)
-        // The API now returns only available slots
+      if (success && slotsData?.slots) {
+        // Process all slots
         availableTimeSlots = slotsData.slots
           .filter((slot) => {
-            // Check if the slot is available and not already booked
-            const slotTime = slot.start_time.split(':').slice(0, 2).join(':');
-            const isAvailable = slot.is_available && !slot.booked_by;
-            const isNotBooked = !bookedTimes.includes(slotTime);
-            return isAvailable && isNotBooked;
+            try {
+              // Check if the slot is available and not already booked
+              const slotTime = slot.start_time.split(':').slice(0, 2).join(':');
+              const isAvailable = slot.is_available && !slot.booked_by;
+              const isNotBooked = !bookedTimes.includes(slotTime);
+              return isAvailable && isNotBooked;
+            } catch (error) {
+              console.error("Error filtering slot:", error, slot);
+              return false;
+            }
           })
           .map((slot) => {
-            // Convert 24-hour format to 12-hour format for display
-            const [hours, minutes] = slot.start_time.split(":");
-            const hour = parseInt(hours);
-            const minute = parseInt(minutes);
-            const ampm = hour >= 12 ? "PM" : "AM";
-            const formattedHour = hour % 12 || 12;
+            try {
+              // Convert 24-hour format to 12-hour format for display
+              const [hours, minutes] = slot.start_time.split(":");
+              const hour = parseInt(hours);
+              const minute = parseInt(minutes);
+              const ampm = hour >= 12 ? "PM" : "AM";
+              const formattedHour = hour % 12 || 12;
 
-            // Create a slot object with additional metadata
-            return {
-              id: slot._id,
-              time: `${formattedHour}:${minute.toString().padStart(2, "0")} ${ampm}`,
-              rawTime: `${hours}:${minutes}`,
-              isAdminAdded: slot.date !== null,
-              period: hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening",
-            };
-          });
+              // Create a slot object with additional metadata
+              return {
+                id: slot._id,
+                time: `${formattedHour}:${minute.toString().padStart(2, "0")} ${ampm}`,
+                rawTime: `${hours}:${minutes}`,
+                originalTime: slot.start_time,
+                isAdminAdded: slot.date !== null,
+                period: hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening",
+              };
+            } catch (error) {
+              console.error("Error mapping slot:", error, slot);
+              return null;
+            }
+          })
+          .filter(Boolean); // Remove any null values
 
         // Sort slots by time
         availableTimeSlots.sort((a, b) => {
-          const timeA = a.rawTime.split(":");
-          const timeB = b.rawTime.split(":");
-          const hourA = parseInt(timeA[0]);
-          const hourB = parseInt(timeB[0]);
-          if (hourA !== hourB) return hourA - hourB;
-          return parseInt(timeA[1]) - parseInt(timeB[1]);
+          try {
+            const timeA = a.rawTime.split(":");
+            const timeB = b.rawTime.split(":");
+            const hourA = parseInt(timeA[0]);
+            const hourB = parseInt(timeB[0]);
+            if (hourA !== hourB) return hourA - hourB;
+            return parseInt(timeA[1]) - parseInt(timeB[1]);
+          } catch (error) {
+            console.error("Error sorting slots:", error);
+            return 0;
+          }
         });
         
         // Deduplicate slots by time
@@ -378,15 +458,15 @@ export default function AdminBookAppointment() {
         setAvailableSlots(uniqueTimeSlots);
       } else {
         console.error("Failed to fetch slots from API");
-        toast.error("Failed to load available slots");
+        toast.error("Could not retrieve available time slots. Please try again later.");
         setAvailableSlots([]);
       }
     } catch (error) {
       console.error("Error checking available slots:", error);
-      toast.error("Failed to load available slots");
+      toast.error("Failed to load available slots. Please try again.");
       setAvailableSlots([]);
     } finally {
-      setIsCheckingSlots(false);
+      setIsLoading(false);
     }
   };
 

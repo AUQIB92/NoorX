@@ -91,13 +91,22 @@ export function withAuth(handler, allowedRoles = []) {
       }
 
       // Add user info to context
-      context = {
-        ...context,
-        user: {
-          id: decoded.userId || decoded.id, // Handle both formats
-          role: decoded.role,
-        },
+      console.log('Adding user info to context:', {
+        userId: decoded.userId || decoded.id,
+        role: decoded.role,
+        hasLab: !!decoded.lab
+      });
+      
+      // Attach the user to both context and req
+      req.user = {
+        id: decoded.userId || decoded.id, // Handle both formats
+        role: decoded.role,
+        email: decoded.email,
+        lab: decoded.lab
       };
+      
+      // Also add to context for handlers that use it
+      context.user = req.user;
 
       // Call the handler with the authenticated context
       console.log('Authentication successful, proceeding to handler');

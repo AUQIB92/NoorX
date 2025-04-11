@@ -348,53 +348,109 @@ export default function BookAppointment() {
 
     try {
       // Fetch all slots for this doctor and date directly from the API
-      // The API now handles filtering out booked slots
       const token = localStorage.getItem("token");
 
       // Add timestamp to avoid caching issues
       const timestamp = new Date().getTime();
 
-      const slotsRes = await fetch(
-        `/api/doctors/${selectedDoctor}/slots?date=${selectedDate}&_t=${timestamp}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          // Ensure we're not using cached data
-          cache: "no-store",
+      // Maximum retry attempts
+      const maxRetries = 2;
+      let retryCount = 0;
+      let success = false;
+      let slotsData = null;
+      
+      while (retryCount <= maxRetries && !success) {
+        try {
+          console.log(`Attempt ${retryCount + 1} to fetch slots...`);
+          
+          const slotsRes = await fetch(
+            `/api/doctors/${selectedDoctor}/slots?date=${selectedDate}&_t=${timestamp}&r=${retryCount}`,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache"
+              },
+              // Ensure we're not using cached data
+              cache: "no-store",
+              // Add a timeout
+              signal: AbortSignal.timeout(10000) // 10 second timeout
+            }
+          );
+
+          if (slotsRes.ok) {
+            slotsData = await slotsRes.json();
+            console.log("Slots data received:", slotsData);
+            success = true;
+          } else {
+            const errorData = await slotsRes.json().catch(() => ({ error: "Unknown error" }));
+            console.error(`Attempt ${retryCount + 1} failed:`, errorData);
+            
+            // Specific error handling based on status
+            if (slotsRes.status === 400) {
+              // Client error - no need to retry
+              toast.error(`Failed to fetch slots: ${errorData.error || "Invalid request"}`);
+              break;
+            } else if (slotsRes.status === 401 || slotsRes.status === 403) {
+              // Authentication error - refresh token or redirect to login
+              toast.error("Session expired. Please log in again.");
+              router.push("/auth/login");
+              break;
+            }
+            
+            // Retry for server errors (5xx)
+            retryCount++;
+            
+            if (retryCount <= maxRetries) {
+              console.log(`Retrying in ${retryCount * 1000}ms...`);
+              await new Promise(resolve => setTimeout(resolve, retryCount * 1000));
+            }
+          }
+        } catch (fetchError) {
+          console.error(`Fetch error on attempt ${retryCount + 1}:`, fetchError);
+          retryCount++;
+          
+          // Display specific error message for timeout
+          if (fetchError.name === 'AbortError') {
+            toast.error("Request timed out. Please try again.");
+          }
+          
+          if (retryCount <= maxRetries) {
+            console.log(`Retrying in ${retryCount * 1000}ms...`);
+            await new Promise(resolve => setTimeout(resolve, retryCount * 1000));
+          }
         }
-      );
+      }
 
       let availableTimeSlots = [];
 
-      if (slotsRes.ok) {
-        const slotsData = await slotsRes.json();
-        console.log("Slots data received:", slotsData);
-
+      if (success && slotsData?.slots) {
         // Process all slots (both regular weekly and admin-added)
-        // The API now returns only available slots
         availableTimeSlots = slotsData.slots
-          .filter((slot) => slot.is_available && !slot.booked_by)
+          .filter((slot) => slot && slot.is_available && !slot.booked_by)
           .map((slot) => {
-            // Convert 24-hour format to 12-hour format for display
-            const [hours, minutes] = slot.start_time.split(":");
-            const hour = parseInt(hours);
-            const minute = parseInt(minutes);
-            const ampm = hour >= 12 ? "PM" : "AM";
-            const formattedHour = hour % 12 || 12;
+            try {
+              // Convert 24-hour format to 12-hour format for display
+              const [hours, minutes] = slot.start_time.split(":");
+              const hour = parseInt(hours);
+              const minute = parseInt(minutes);
+              const ampm = hour >= 12 ? "PM" : "AM";
+              const formattedHour = hour % 12 || 12;
 
-            // Create a slot object with additional metadata
-            return {
-              id: slot._id,
-              time: `${formattedHour}:${minute
-                .toString()
-                .padStart(2, "0")} ${ampm}`,
-              rawTime: `${hours}:${minutes}`,
-              isAdminAdded: slot.date !== null,
-              period:
-                hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening",
-            };
-          });
+              // Create a slot object with additional metadata
+              return {
+                id: slot._id,
+                time: `${formattedHour}:${minute.toString().padStart(2, "0")} ${ampm}`,
+                rawTime: `${hours}:${minutes}`,
+                isAdminAdded: slot.date !== null,
+                period: hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening",
+              };
+            } catch (parseError) {
+              console.error("Error parsing slot:", parseError, slot);
+              return null;
+            }
+          })
+          .filter(Boolean); // Remove any null entries
 
         // Sort slots by time
         availableTimeSlots.sort((a, b) => {
@@ -413,22 +469,19 @@ export default function BookAppointment() {
           selectedTime &&
           !availableTimeSlots.some((slot) => slot.time === selectedTime)
         ) {
-          console.log(
-            "Selected time is no longer available, clearing selection"
-          );
+          console.log("Selected time is no longer available, clearing selection");
           setSelectedTime("");
-          toast.info(
-            "The previously selected time slot is no longer available."
-          );
+          toast.info("The previously selected time slot is no longer available.");
         }
 
         setAvailableSlots(availableTimeSlots);
         setIsCheckingSlots(false);
         return;
       } else {
-        console.log(
-          "Failed to fetch slots from API, falling back to availability data"
-        );
+        console.log("Failed to fetch slots from API after retries, falling back to availability data");
+        if (!success) {
+          toast.error("Could not fetch available slots. Using estimated availability instead.");
+        }
 
         // Fallback to using availability data if the API call fails
         // Get day of week for the selected date

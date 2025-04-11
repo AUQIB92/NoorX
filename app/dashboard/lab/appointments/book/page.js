@@ -380,7 +380,7 @@ export default function LabBookAppointment() {
   const checkAvailableSlots = async () => {
     if (!selectedDoctor || !selectedDate) {
       setAvailableSlots([]);
-      return Promise.resolve();
+      return;
     }
 
     // Check if we have cached results for this doctor/date combination
@@ -388,9 +388,9 @@ export default function LabBookAppointment() {
     if (slotsCache[cacheKey]) {
       console.log("Using cached slots data");
       setAvailableSlots(slotsCache[cacheKey]);
-      return Promise.resolve();
-    }
-
+          return;
+        }
+        
     setIsCheckingSlots(true);
     // Clear available slots while checking to prevent displaying old data
     setAvailableSlots([]);
@@ -403,15 +403,17 @@ export default function LabBookAppointment() {
       
       if (!labId) {
         toast.error("Lab ID not found. Please log in again.");
-        return Promise.reject(new Error("Lab ID not found"));
-      }
-      
+      return;
+    }
+
       const bookingsRes = await fetch(
         `/api/appointments?doctor=${selectedDoctor._id}&date=${selectedDate}&labId=${labId}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
+            "Cache-Control": "no-cache",
           },
+          cache: 'no-store'
         }
       );
 
@@ -424,61 +426,135 @@ export default function LabBookAppointment() {
           .map(app => app.time.split(':').slice(0, 2).join(':'));
         
         console.log("Booked time slots:", bookedTimes);
+      } else {
+        console.warn("Failed to fetch bookings. Will continue but may show already booked slots.");
       }
 
       // Fetch all slots for this doctor and date directly from the API
-      const slotsRes = await fetch(
-        `/api/doctors/${selectedDoctor._id}/slots?date=${selectedDate}`,
-        {
+      // Maximum retry attempts
+      const maxRetries = 2;
+      let retryCount = 0;
+      let success = false;
+      let slotsData = null;
+      const timestamp = new Date().getTime();
+      
+      while (retryCount <= maxRetries && !success) {
+        try {
+          console.log(`Attempt ${retryCount + 1} to fetch slots...`);
+          
+          const slotsRes = await fetch(
+            `/api/doctors/${selectedDoctor._id}/slots?date=${selectedDate}&_t=${timestamp}&r=${retryCount}`,
+            {
           headers: {
             Authorization: `Bearer ${token}`,
-          },
-          // Add cache control headers
-          cache: 'no-store'
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache"
+              },
+              // Ensure we're not using cached data
+              cache: "no-store",
+              // Add a timeout
+              signal: AbortSignal.timeout(8000) // 8 second timeout
+            }
+          );
+
+          if (slotsRes.ok) {
+            slotsData = await slotsRes.json();
+            console.log("Slots data received:", slotsData);
+            success = true;
+          } else {
+            const errorData = await slotsRes.json().catch(() => ({ error: "Unknown error" }));
+            console.error(`Attempt ${retryCount + 1} failed:`, errorData);
+            
+            // Specific error handling based on status
+            if (slotsRes.status === 400) {
+              // Client error - no need to retry
+              toast.error(`Failed to fetch slots: ${errorData.error || "Invalid request"}`);
+              break;
+            } else if (slotsRes.status === 401 || slotsRes.status === 403) {
+              // Authentication error - refresh token or redirect to login
+              toast.error("Session expired. Please log in again.");
+              router.push("/auth/login");
+              break;
+            }
+            
+            // Retry for server errors (5xx)
+            retryCount++;
+            
+            if (retryCount <= maxRetries) {
+              console.log(`Retrying in ${retryCount * 1000}ms...`);
+              await new Promise(resolve => setTimeout(resolve, retryCount * 1000));
+            }
+          }
+        } catch (fetchError) {
+          console.error(`Fetch error on attempt ${retryCount + 1}:`, fetchError);
+          retryCount++;
+          
+          // Display specific error message for timeout
+          if (fetchError.name === 'AbortError') {
+            toast.error("Request timed out. Please try again.");
+          }
+          
+          if (retryCount <= maxRetries) {
+            console.log(`Retrying in ${retryCount * 1000}ms...`);
+            await new Promise(resolve => setTimeout(resolve, retryCount * 1000));
+          }
         }
-      );
+      }
 
       let availableTimeSlots = [];
 
-      if (slotsRes.ok) {
-        const slotsData = await slotsRes.json();
-        console.log("Slots data received:", slotsData);
-
-        // Process all slots (both regular weekly and admin-added)
+      if (success && slotsData?.slots) {
+        // Process all slots
         availableTimeSlots = slotsData.slots
           .filter((slot) => {
-            // Check if the slot is available and not already booked
-            const slotTime = slot.start_time.split(':').slice(0, 2).join(':');
-            const isAvailable = slot.is_available && !slot.booked_by;
-            const isNotBooked = !bookedTimes.includes(slotTime);
-            return isAvailable && isNotBooked;
+            try {
+              // Check if the slot is available and not already booked
+              const slotTime = slot.start_time.split(':').slice(0, 2).join(':');
+              const isAvailable = slot.is_available && !slot.booked_by;
+              const isNotBooked = !bookedTimes.includes(slotTime);
+              return isAvailable && isNotBooked;
+            } catch (error) {
+              console.error("Error filtering slot:", error, slot);
+              return false;
+            }
           })
           .map((slot) => {
-            // Convert 24-hour format to 12-hour format for display
-            const [hours, minutes] = slot.start_time.split(":");
-            const hour = parseInt(hours);
-            const minute = parseInt(minutes);
-            const ampm = hour >= 12 ? "PM" : "AM";
-            const formattedHour = hour % 12 || 12;
+            try {
+              // Convert 24-hour format to 12-hour format for display
+              const [hours, minutes] = slot.start_time.split(":");
+          const hour = parseInt(hours);
+          const minute = parseInt(minutes);
+              const ampm = hour >= 12 ? "PM" : "AM";
+          const formattedHour = hour % 12 || 12;
 
-            // Create a slot object with additional metadata
-            return {
-              id: slot._id,
-              time: `${formattedHour}:${minute.toString().padStart(2, "0")} ${ampm}`,
-              rawTime: `${hours}:${minutes}`,
-              isAdminAdded: slot.date !== null,
-              period: hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening",
-            };
-          });
+              // Create a slot object with additional metadata
+          return {
+            id: slot._id,
+                time: `${formattedHour}:${minute.toString().padStart(2, "0")} ${ampm}`,
+                rawTime: `${hours}:${minutes}`,
+            isAdminAdded: slot.date !== null,
+                period: hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening",
+              };
+            } catch (error) {
+              console.error("Error mapping slot:", error, slot);
+              return null;
+            }
+          })
+          .filter(Boolean); // Remove any null values
 
         // Sort slots by time
         availableTimeSlots.sort((a, b) => {
-          const timeA = a.rawTime.split(":");
-          const timeB = b.rawTime.split(":");
-          const hourA = parseInt(timeA[0]);
-          const hourB = parseInt(timeB[0]);
-          if (hourA !== hourB) return hourA - hourB;
-          return parseInt(timeA[1]) - parseInt(timeB[1]);
+          try {
+            const timeA = a.rawTime.split(":");
+            const timeB = b.rawTime.split(":");
+            const hourA = parseInt(timeA[0]);
+            const hourB = parseInt(timeB[0]);
+            if (hourA !== hourB) return hourA - hourB;
+            return parseInt(timeA[1]) - parseInt(timeB[1]);
+    } catch (error) {
+            console.error("Error sorting slots:", error);
+            return 0;
+          }
         });
         
         // Deduplicate slots by time
@@ -500,19 +576,15 @@ export default function LabBookAppointment() {
         }));
         
         setAvailableSlots(uniqueTimeSlots);
-      } else {
+    } else {
         console.error("Failed to fetch slots from API");
-        toast.error("Failed to load available slots");
-        setAvailableSlots([]);
+        toast.error("Could not retrieve available time slots. Please try again later.");
+      setAvailableSlots([]);
       }
-
-      // Return a resolved promise at the end
-      return Promise.resolve();
     } catch (error) {
       console.error("Error checking available slots:", error);
-      toast.error("Failed to load available slots");
+      toast.error("Failed to load available slots. Please try again.");
       setAvailableSlots([]);
-      return Promise.reject(error);
     } finally {
       setIsCheckingSlots(false);
     }
@@ -1112,20 +1184,20 @@ export default function LabBookAppointment() {
               className="block text-sm font-medium text-gray-700 mb-3 flex items-center"
             >
               <FaCalendarAlt className="h-5 w-5 mr-2 text-blue-500" />
-              Select Date
-            </label>
+            Select Date
+          </label>
             <div className="relative">
-              <input
-                type="date"
+          <input
+            type="date"
                 id="date"
-                value={selectedDate}
-                onChange={handleDateChange}
+            value={selectedDate}
+            onChange={handleDateChange}
                 min={minDate}
                 max={maxDateStr}
                 className="w-full p-3 pl-4 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 shadow-sm transition-all"
-              />
-            </div>
-
+          />
+        </div>
+        
             {selectedDate && (
               <div className="mt-3 bg-blue-50 p-3 rounded-lg">
                 <p className="text-sm text-blue-800 flex items-center">
@@ -1141,7 +1213,7 @@ export default function LabBookAppointment() {
                 <p className="text-red-700 text-sm font-medium">
                   No available slots on this day. Please try another date.
                 </p>
-              </div>
+                </div>
             )}
           </div>
 
@@ -1161,11 +1233,11 @@ export default function LabBookAppointment() {
                   <FaSpinner className="animate-spin h-8 w-8 text-blue-500 mb-2" />
                   <p className="text-sm text-gray-500">
                     Checking available slots...
-                  </p>
-                </div>
+                      </p>
+                    </div>
               </div>
             ) : selectedDate ? (
-              <TimeSlotPicker
+                    <TimeSlotPicker 
                 availableSlots={availableSlots}
                 selectedTime={selectedTime}
                 onTimeSelect={handleTimeSelection}
@@ -1180,25 +1252,25 @@ export default function LabBookAppointment() {
               </div>
             )}
           </div>
-        </div>
-
+            </div>
+            
         {/* Additional Notes */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
           <label
             htmlFor="notes"
             className="block text-sm font-medium text-gray-700 mb-3"
           >
-            Additional Notes (Optional)
-          </label>
-          <textarea
+                Additional Notes (Optional)
+              </label>
+              <textarea
             id="notes"
-            rows="3"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
+                rows="3"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
             placeholder="Add any special instructions or notes for the appointment"
             className="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 shadow-sm transition-all"
           />
-        </div>
+            </div>
 
         {/* Navigation Buttons */}
         <div className="flex justify-between mt-8">
