@@ -137,11 +137,8 @@ export default function LabAppointmentsManagement() {
       }
 
       const data = await response.json();
-      // Filter appointments for this lab
-      const labAppointments = data.appointments.filter(
-        (appointment) => appointment.lab?._id === labId
-      );
-      setAppointments(labAppointments);
+      // No need to filter by lab again since the API is already filtering
+      setAppointments(data.appointments);
     } catch (error) {
       console.error("Error fetching appointments:", error);
       toast.error(error.message || "Failed to fetch appointments");
@@ -186,7 +183,8 @@ export default function LabAppointmentsManagement() {
         },
         body: JSON.stringify({
           ...appointmentFormData,
-          lab: labId,
+          lab_id: labId,
+          booked_by: "labAdmin",
           status: "confirmed", // Set default status for lab-booked appointments
         }),
       });
@@ -281,16 +279,25 @@ export default function LabAppointmentsManagement() {
 
   // Filter appointments based on search term, status, and date
   const filteredAppointments = appointments.filter((appointment) => {
-    const matchesSearch = appointment.patientName
-      .toLowerCase()
-      .includes(searchTerm.toLowerCase());
+    // Check if patient name exists and matches search
+    const matchesSearch = searchTerm
+      ? (appointment.patient_id?.name || '').toLowerCase().includes(searchTerm.toLowerCase())
+      : true;
+
+    // Check if status matches filter
     const matchesStatus = filterStatus
       ? appointment.status === filterStatus
       : true;
+
+    // Check if date matches filter
     const matchesDate = filterDate
-      ? appointment.date.startsWith(filterDate)
+      ? new Date(appointment.date).toISOString().split('T')[0] === filterDate
       : true;
-    return matchesSearch && matchesStatus && matchesDate;
+
+    // Check if the doctor is from this lab
+    const isLabDoctor = doctors.some(doctor => doctor._id === appointment.doctor_id?._id);
+
+    return matchesSearch && matchesStatus && matchesDate && isLabDoctor;
   });
 
   return (
@@ -393,10 +400,10 @@ export default function LabAppointmentsManagement() {
                           </div>
                           <div className="ml-4">
                             <div className="text-sm font-medium text-gray-900">
-                              {appointment.patientName}
+                              {appointment.patient_id?.name}
                             </div>
                             <div className="text-sm text-gray-500">
-                              {appointment.patientEmail}
+                              {appointment.patient_id?.email}
                             </div>
                           </div>
                         </div>
@@ -411,10 +418,10 @@ export default function LabAppointmentsManagement() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-900">
-                          {appointment.doctor?.name}
+                          {appointment.doctor_id?.name}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {appointment.doctor?.specialization}
+                          {appointment.doctor_id?.specialization}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -447,7 +454,7 @@ export default function LabAppointmentsManagement() {
                             setSelectedAppointment(appointment);
                             setAppointmentFormData({
                               ...appointment,
-                              doctorId: appointment.doctor?._id,
+                              doctorId: appointment.doctor_id?._id,
                               serviceId: appointment.service?._id,
                             });
                             setShowEditModal(true);

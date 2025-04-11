@@ -5,6 +5,9 @@ import Appointment from "../../../../models/Appointment";
 import Service from "../../../../models/Service";
 import { withAuth } from "../../../../middleware/auth";
 
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 // Get admin dashboard statistics
 async function getStats(req) {
   try {

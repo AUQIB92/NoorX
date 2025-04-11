@@ -1,4 +1,6 @@
 // app/api/appointments/route.js
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 import { NextResponse } from "next/server";
 import connectToDatabase from "../../../lib/db";
@@ -40,13 +42,17 @@ async function getAppointments(req, context) {
     let status = null;
     let doctorId = null;
     let date = null;
+    let labId = null;
+    let searchParams = null;
     
     if (req.url) {
       try {
-        const { searchParams } = new URL(req.url);
+        const url = new URL(req.url);
+        searchParams = url.searchParams;
         status = searchParams.get("status");
         doctorId = searchParams.get("doctor");
         date = searchParams.get("date");
+        labId = searchParams.get("labId");
       } catch (urlError) {
         console.error("Error parsing URL:", urlError);
         // Continue with null values for the parameters
@@ -54,6 +60,55 @@ async function getAppointments(req, context) {
     }
 
     let query = {};
+
+    // Add labId filter if provided in query params
+    if (labId) {
+      try {
+        query.lab_id = new mongoose.Types.ObjectId(labId);
+        console.log("Added lab filter to query:", labId);
+      } catch (error) {
+        console.error("Invalid lab ID format:", labId);
+        return NextResponse.json(
+          { error: "Invalid lab ID format" },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Add status filter if provided
+    if (status) {
+      query.status = status;
+    }
+
+    // Add doctor filter if provided
+    if (doctorId) {
+      try {
+        query.doctor_id = new mongoose.Types.ObjectId(doctorId);
+      } catch (error) {
+        console.error("Invalid doctor ID format:", doctorId);
+        return NextResponse.json(
+          { error: "Invalid doctor ID format" },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Add date filter if provided
+    if (date) {
+      // Create date range for the entire day
+      const startDate = new Date(date);
+      startDate.setHours(0, 0, 0, 0);
+      
+      const endDate = new Date(date);
+      endDate.setHours(23, 59, 59, 999);
+      
+      query.date = {
+        $gte: startDate,
+        $lte: endDate
+      };
+    }
+
+    console.log("Final query:", JSON.stringify(query, null, 2));
 
     // Filter appointments based on user role (unless specific filters are provided)
     if (!doctorId && user.role === "patient") {
@@ -64,51 +119,39 @@ async function getAppointments(req, context) {
       console.log("Filtering appointments for doctor:", user.id);
     }
 
-    // Filter by doctor if provided
-    if (doctorId) {
-      query.doctor_id = doctorId;
-      console.log("Filtering appointments for doctor ID:", doctorId);
-    }
-
-    // Filter by date if provided
-    if (date) {
-      // Create date range for the entire day
-      const startDate = new Date(date);
-      startDate.setHours(0, 0, 0, 0);
-
-      const endDate = new Date(date);
-      endDate.setHours(23, 59, 59, 999);
-
-      query.date = {
-        $gte: startDate,
-        $lte: endDate,
-      };
-      console.log("Filtering appointments for date:", date);
-    }
-
-    // Filter by status if provided
-    if (status) {
-      query.status = status;
-      console.log("Filtering appointments by status:", status);
-    }
-
-    console.log("Final query:", JSON.stringify(query));
-
     // Set a timeout for the database query
     const timeoutPromise = new Promise((_, reject) =>
       setTimeout(() => reject(new Error("Database query timeout")), 15000)
     );
 
+    // Log the query before execution
+    console.log("Executing appointment query with:", {
+      query,
+      user_role: user.role,
+      user_id: user.id
+    });
+
     // Execute the database query with a timeout
     const queryPromise = Appointment.find(query)
       .populate("patient_id", "name mobile")
       .populate("doctor_id", "name specialization")
-      .populate("service_id", "name price duration")
+      .populate({
+        path: "service_id",
+        select: "name price duration",
+        model: query.service_model || 'Service'  // Use the correct model based on service_model
+      })
+      .populate("lab_id", "name")  // Add lab population
       .sort({ date: 1, time: 1 });
 
     // Race between the query and the timeout
     const appointments = await Promise.race([queryPromise, timeoutPromise]);
+    console.log("Raw appointments from DB:", JSON.stringify(appointments));
     console.log(`Found ${appointments.length} appointments`);
+
+    // Log sample appointment if any exist
+    if (appointments.length > 0) {
+      console.log("Sample appointment:", JSON.stringify(appointments[0]));
+    }
 
     return NextResponse.json({ appointments }, { status: 200 });
   } catch (error) {
@@ -402,16 +445,13 @@ async function createAppointment(req, context) {
     if (validSlot) {
       // If this is a specific date slot (not a weekly recurring slot), mark it as booked
       if (validSlot.date) {
-        console.log(`Marking specific date slot ${validSlot._id} as booked`);
+        console.log("Marking specific date slot", validSlot._id, "as booked");
         validSlot.booked_by = actualPatientId;
         validSlot.booking_time = new Date();
         await validSlot.save();
       } else {
         // For weekly recurring slots, create a new specific date slot that is marked as booked
-        // This prevents the weekly slot from being permanently marked as booked
-        console.log(
-          `Creating booked specific date slot for weekly slot ${validSlot._id}`
-        );
+        console.log("Creating booked specific date slot for weekly slot", validSlot._id);
 
         // First, check if a specific date slot already exists for this doctor, date, and time
         const specificDateObj = new Date(date);
@@ -425,41 +465,28 @@ async function createAppointment(req, context) {
         });
 
         if (existingSpecificSlot) {
-          // If a specific date slot already exists, update it instead of creating a new one
-          console.log(
-            `Found existing specific date slot ${existingSpecificSlot._id}, updating it`
-          );
+          console.log(`Found existing specific date slot ${existingSpecificSlot._id}, updating it`);
           existingSpecificSlot.is_available = false;
           existingSpecificSlot.booked_by = actualPatientId;
           existingSpecificSlot.booking_time = new Date();
           await existingSpecificSlot.save();
-          console.log(
-            `Updated existing specific date slot: ${existingSpecificSlot._id}`
-          );
         } else {
           // Create a new specific date slot
           const bookedSlot = new DoctorSlot({
             doctor_id: validSlot.doctor_id,
             day: validSlot.day,
-            date: new Date(date), // Use the specific date
+            date: new Date(date),
             start_time: validSlot.start_time,
             end_time: validSlot.end_time,
             duration: validSlot.duration,
-            is_available: false, // Mark as unavailable
+            is_available: false,
             is_admin_only: validSlot.is_admin_only,
             booked_by: actualPatientId,
             booking_time: new Date(),
           });
 
-          try {
-            await bookedSlot.save();
-            console.log(`Created booked specific date slot: ${bookedSlot._id}`);
-          } catch (slotError) {
-            // If there's an error saving the slot (e.g., duplicate key), log it but don't fail the booking
-            console.error("Error creating specific date slot:", slotError);
-            // The appointment is still created, we just couldn't mark the slot as booked
-            console.log("Appointment created but couldn't mark slot as booked");
-          }
+          await bookedSlot.save();
+          console.log(`Created booked specific date slot: ${bookedSlot._id}`);
         }
       }
     }
