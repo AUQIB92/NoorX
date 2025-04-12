@@ -457,9 +457,9 @@ async function createAppointment(req, context) {
       payment_id: payment_method === "cash" ? "N/A" : (payment_id || null),
       razorpay_order_id: payment_method === "cash" ? "N/A" : (razorpay_order_id || null),
       razorpay_signature: payment_method === "cash" ? "N/A" : (razorpay_signature || null),
-      // Include slot_id for regular appointments and lab_id for lab appointments
-      ...(service_type === "regular" && slot_id ? { slot_id } : {}),
-      ...(service_type === "lab" && lab_id ? { lab_id } : {}),
+      // Always include slot_id for regular appointments and lab_id for lab appointments
+      slot_id: service_type === "regular" ? (slot_id || validSlot._id) : null,
+      lab_id: service_type === "lab" ? lab_id : null,
     });
 
     await appointment.save();

@@ -55,7 +55,7 @@ const appointmentSchema = new mongoose.Schema({
   },
   payment_method: {
     type: String,
-    enum: ["cash", "card", "insurance"],
+    enum: ["cash", "card", "insurance", "online"],
     default: "cash",
   },
   payment_date: {
