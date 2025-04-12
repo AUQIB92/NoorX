@@ -65,7 +65,7 @@ const RazorpayPayment = ({
         key: orderData.key_id,
         amount: orderData.order.amount,
         currency: orderData.order.currency,
-        name: "Sehat",
+        name: "NoorX",
         description: `Appointment with ${doctorDetails.name} for ${serviceDetails.name}`,
         order_id: orderData.order.id,
         handler: async function (response) {

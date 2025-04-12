@@ -171,9 +171,9 @@ export default function DashboardLayout({ children, role }) {
         <div className="p-4 flex flex-col items-center">
           <div className="flex items-center">
             <FaHospital className="h-8 w-8 mr-2" />
-            <span className="text-xl font-bold">Sehat</span>
+            <span className="text-xl font-bold">NoorX</span>
           </div>
-          <span className="text-sm text-primary-200 mt-1">By ArwaaLabs</span>
+          <span className="text-sm text-primary-200 mt-1">Bringing comfort closer.</span>
         </div>
 
         <div className="p-4 border-t border-primary-500">
@@ -216,9 +216,9 @@ export default function DashboardLayout({ children, role }) {
           <div className="flex flex-col">
             <div className="flex items-center">
               <FaHospital className="h-6 w-6 mr-2" />
-              <span className="font-bold">Sehat</span>
+              <span className="font-bold">NoorX</span>
             </div>
-            <span className="text-xs text-primary-200 ml-8">By ArwaaLabs</span>
+            <span className="text-xs text-primary-200 ml-8">Bringing comfort closer.</span>
           </div>
           <button
             onClick={() => setIsMenuOpen(!isMenuOpen)}

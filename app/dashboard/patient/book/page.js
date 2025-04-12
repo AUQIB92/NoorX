@@ -851,7 +851,7 @@ export default function BookAppointment() {
         key: orderResponseData.key_id,
         amount: orderResponseData.order.amount,
         currency: orderResponseData.order.currency,
-        name: "Sehat",
+        name: "NoorX",
         description: `Payment for ${serviceDetails.name} with Dr. ${doctorDetails.name}`,
         order_id: orderResponseData.order.id,
         handler: async function (response) {

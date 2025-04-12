@@ -4,9 +4,9 @@ import "../styles/globals.css";
 import Script from "next/script";
 
 export const metadata = {
-  title: "Sehat - Your Health, Our Priority",
+  title: "NoorX - Bringing comfort closer.",
   description:
-    "Book appointments with top healthcare professionals at Sehat - Your Health, Our Priority",
+    "NoorX is a healthcare appointment booking system designed to bring light, ease, and intelligence to medical access.",
 };
 
 export default function RootLayout({ children }) {

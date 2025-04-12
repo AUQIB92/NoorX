@@ -13,6 +13,11 @@ import {
   FaPhone,
   FaEnvelope,
   FaClock,
+  FaHospital,
+  FaMobile,
+  FaCity,
+  FaFlag,
+  FaMapPin,
 } from "react-icons/fa";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -52,8 +57,8 @@ export default function LabsPage() {
       country: "India",
     },
     contactInfo: {
-      phone: "",
       mobile: "",
+      phone: "",
       email: "",
     },
     workingHours: {
@@ -105,6 +110,7 @@ export default function LabsPage() {
         throw new Error(data.error || "Failed to fetch labs");
       }
 
+      console.log("Fetched labs data:", data.labs);
       setLabs(data.labs);
     } catch (error) {
       if (mounted) {
@@ -152,6 +158,18 @@ export default function LabsPage() {
     e.preventDefault();
 
     try {
+      // Ensure mobile number is also set as phone for the API
+      const formDataToSubmit = {
+        ...formData,
+        contactInfo: {
+          ...formData.contactInfo,
+          phone: formData.contactInfo.mobile, // Set phone field to mobile value
+        },
+        // Add these explicit fields
+        location: formData.address.city || "",
+        phone: formData.contactInfo.mobile || ""
+      };
+      
       const token = localStorage.getItem("token");
       const response = await fetch("/api/labs", {
         method: "POST",
@@ -159,7 +177,7 @@ export default function LabsPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(formDataToSubmit),
       });
 
       const data = await response.json();
@@ -181,8 +199,8 @@ export default function LabsPage() {
           country: "India",
         },
         contactInfo: {
-          phone: "",
           mobile: "",
+          phone: "",
           email: "",
         },
         workingHours: {
@@ -208,6 +226,18 @@ export default function LabsPage() {
     e.preventDefault();
 
     try {
+      // Ensure mobile number is also set as phone for the API
+      const formDataToSubmit = {
+        ...formData,
+        contactInfo: {
+          ...formData.contactInfo,
+          phone: formData.contactInfo.mobile, // Set phone field to mobile value
+        },
+        // Add these explicit fields
+        location: formData.address.city || "",
+        phone: formData.contactInfo.mobile || ""
+      };
+      
       const token = localStorage.getItem("token");
       const response = await fetch(`/api/labs/${selectedLab._id}`, {
         method: "PUT",
@@ -215,7 +245,7 @@ export default function LabsPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(formDataToSubmit),
       });
 
       const data = await response.json();
@@ -272,10 +302,10 @@ export default function LabsPage() {
         zipCode: "",
         country: "India",
       },
-      contactInfo: lab.contactInfo || {
-        phone: "",
-        mobile: "",
-        email: "",
+      contactInfo: {
+        mobile: lab.contactInfo?.mobile || "",
+        phone: lab.contactInfo?.mobile || lab.contactInfo?.phone || "",
+        email: lab.contactInfo?.email || "",
       },
       workingHours: lab.workingHours || {
         monday: { open: "09:00", close: "17:00" },
@@ -468,12 +498,12 @@ export default function LabsPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-500">
-                          {lab.address?.city}, {lab.address?.state}
+                          {lab.location || 'N/A'}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-500">
-                          {lab.contactInfo?.phone}
+                          {lab.phone || lab.contactInfo?.mobile || lab.contactInfo?.phone || 'N/A'}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -516,123 +546,166 @@ export default function LabsPage() {
       {/* Add Lab Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-bold mb-4">Add New Lab</h2>
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="border-b pb-4 mb-6">
+              <h2 className="text-2xl font-bold text-primary-700 flex items-center">
+                <FaPlus className="mr-2 text-primary-600" /> Add New Lab
+              </h2>
+              <p className="text-gray-500 mt-1">Create a new healthcare facility in the NoorX network</p>
+            </div>
+            
             <form onSubmit={handleAddSubmit}>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Lab Name *
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    Lab Name <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full px-3 py-2 border rounded-md"
-                  />
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaHospital className="h-5 w-5 text-primary-500" />
+                    </div>
+                    <input
+                      type="text"
+                      name="name"
+                      value={formData.name}
+                      onChange={handleInputChange}
+                      required
+                      placeholder="Enter lab name"
+                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    />
+                  </div>
                 </div>
+                
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Email *
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    Email <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full px-3 py-2 border rounded-md"
-                  />
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaEnvelope className="h-5 w-5 text-primary-500" />
+                    </div>
+                    <input
+                      type="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleInputChange}
+                      required
+                      placeholder="Enter email address"
+                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    />
+                  </div>
                 </div>
+                
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Phone *
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    Mobile Number <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
-                    name="contactInfo.phone"
-                    value={formData.contactInfo.phone}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full px-3 py-2 border rounded-md"
-                  />
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaMobile className="h-5 w-5 text-primary-500" />
+                    </div>
+                    <input
+                      type="text"
+                      name="contactInfo.mobile"
+                      value={formData.contactInfo.mobile}
+                      onChange={handleInputChange}
+                      required
+                      placeholder="Enter mobile number"
+                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    />
+                  </div>
                 </div>
+                
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Mobile
-                  </label>
-                  <input
-                    type="text"
-                    name="contactInfo.mobile"
-                    value={formData.contactInfo.mobile}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border rounded-md"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
                     Street Address
                   </label>
-                  <input
-                    type="text"
-                    name="address.street"
-                    value={formData.address.street}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border rounded-md"
-                  />
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaMapMarkerAlt className="h-5 w-5 text-primary-500" />
+                    </div>
+                    <input
+                      type="text"
+                      name="address.street"
+                      value={formData.address.street}
+                      onChange={handleInputChange}
+                      placeholder="Enter street address"
+                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    />
+                  </div>
                 </div>
+                
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
                     City
                   </label>
-                  <input
-                    type="text"
-                    name="address.city"
-                    value={formData.address.city}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border rounded-md"
-                  />
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaCity className="h-5 w-5 text-primary-500" />
+                    </div>
+                    <input
+                      type="text"
+                      name="address.city"
+                      value={formData.address.city}
+                      onChange={handleInputChange}
+                      placeholder="Enter city"
+                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    />
+                  </div>
                 </div>
+                
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
                     State
                   </label>
-                  <input
-                    type="text"
-                    name="address.state"
-                    value={formData.address.state}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border rounded-md"
-                  />
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaFlag className="h-5 w-5 text-primary-500" />
+                    </div>
+                    <input
+                      type="text"
+                      name="address.state"
+                      value={formData.address.state}
+                      onChange={handleInputChange}
+                      placeholder="Enter state"
+                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    />
+                  </div>
                 </div>
+                
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
                     ZIP Code
                   </label>
-                  <input
-                    type="text"
-                    name="address.zipCode"
-                    value={formData.address.zipCode}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border rounded-md"
-                  />
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaMapPin className="h-5 w-5 text-primary-500" />
+                    </div>
+                    <input
+                      type="text"
+                      name="address.zipCode"
+                      value={formData.address.zipCode}
+                      onChange={handleInputChange}
+                      placeholder="Enter ZIP code"
+                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    />
+                  </div>
                 </div>
               </div>
-              <div className="flex justify-end space-x-2">
+              
+              <div className="flex justify-end space-x-3 pt-4 border-t">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-md"
+                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="bg-teal-500 hover:bg-teal-600 text-white px-4 py-2 rounded-md"
+                  className="px-4 py-2 rounded-md text-white bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 shadow-md transition-colors flex items-center"
                 >
-                  Add Lab
+                  <FaPlus className="mr-2" /> Add Lab
                 </button>
               </div>
             </form>
@@ -643,142 +716,186 @@ export default function LabsPage() {
       {/* Edit Lab Modal */}
       {showEditModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-bold mb-4">Edit Lab</h2>
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="border-b pb-4 mb-6">
+              <h2 className="text-2xl font-bold text-primary-700 flex items-center">
+                <FaEdit className="mr-2 text-primary-600" /> Edit Lab
+              </h2>
+              <p className="text-gray-500 mt-1">Update information for {formData.name}</p>
+            </div>
+            
             <form onSubmit={handleEditSubmit}>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Lab Name *
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    Lab Name <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full px-3 py-2 border rounded-md"
-                  />
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaHospital className="h-5 w-5 text-primary-500" />
+                    </div>
+                    <input
+                      type="text"
+                      name="name"
+                      value={formData.name}
+                      onChange={handleInputChange}
+                      required
+                      placeholder="Enter lab name"
+                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    />
+                  </div>
                 </div>
+                
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Email *
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    Email <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full px-3 py-2 border rounded-md"
-                  />
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaEnvelope className="h-5 w-5 text-primary-500" />
+                    </div>
+                    <input
+                      type="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleInputChange}
+                      required
+                      placeholder="Enter email address"
+                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    />
+                  </div>
                 </div>
+                
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Phone *
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    Mobile Number <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
-                    name="contactInfo.phone"
-                    value={formData.contactInfo.phone}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full px-3 py-2 border rounded-md"
-                  />
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaMobile className="h-5 w-5 text-primary-500" />
+                    </div>
+                    <input
+                      type="text"
+                      name="contactInfo.mobile"
+                      value={formData.contactInfo.mobile}
+                      onChange={handleInputChange}
+                      required
+                      placeholder="Enter mobile number"
+                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    />
+                  </div>
                 </div>
+                
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Mobile
-                  </label>
-                  <input
-                    type="text"
-                    name="contactInfo.mobile"
-                    value={formData.contactInfo.mobile}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border rounded-md"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
                     Street Address
                   </label>
-                  <input
-                    type="text"
-                    name="address.street"
-                    value={formData.address.street}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border rounded-md"
-                  />
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaMapMarkerAlt className="h-5 w-5 text-primary-500" />
+                    </div>
+                    <input
+                      type="text"
+                      name="address.street"
+                      value={formData.address.street}
+                      onChange={handleInputChange}
+                      placeholder="Enter street address"
+                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    />
+                  </div>
                 </div>
+                
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
                     City
                   </label>
-                  <input
-                    type="text"
-                    name="address.city"
-                    value={formData.address.city}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border rounded-md"
-                  />
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaCity className="h-5 w-5 text-primary-500" />
+                    </div>
+                    <input
+                      type="text"
+                      name="address.city"
+                      value={formData.address.city}
+                      onChange={handleInputChange}
+                      placeholder="Enter city"
+                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    />
+                  </div>
                 </div>
+                
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
                     State
                   </label>
-                  <input
-                    type="text"
-                    name="address.state"
-                    value={formData.address.state}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border rounded-md"
-                  />
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaFlag className="h-5 w-5 text-primary-500" />
+                    </div>
+                    <input
+                      type="text"
+                      name="address.state"
+                      value={formData.address.state}
+                      onChange={handleInputChange}
+                      placeholder="Enter state"
+                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    />
+                  </div>
                 </div>
+                
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
                     ZIP Code
                   </label>
-                  <input
-                    type="text"
-                    name="address.zipCode"
-                    value={formData.address.zipCode}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border rounded-md"
-                  />
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaMapPin className="h-5 w-5 text-primary-500" />
+                    </div>
+                    <input
+                      type="text"
+                      name="address.zipCode"
+                      value={formData.address.zipCode}
+                      onChange={handleInputChange}
+                      placeholder="Enter ZIP code"
+                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    />
+                  </div>
                 </div>
+                
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
                     Status
                   </label>
-                  <select
-                    name="isActive"
-                    value={formData.isActive}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        isActive: e.target.value === "true",
-                      })
-                    }
-                    className="w-full px-3 py-2 border rounded-md"
-                  >
-                    <option value="true">Active</option>
-                    <option value="false">Inactive</option>
-                  </select>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaClock className="h-5 w-5 text-primary-500" />
+                    </div>
+                    <select
+                      name="isActive"
+                      value={formData.isActive}
+                      onChange={(e) => setFormData({ ...formData, isActive: e.target.value === "true" })}
+                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    >
+                      <option value="true">Active</option>
+                      <option value="false">Inactive</option>
+                    </select>
+                  </div>
                 </div>
               </div>
-              <div className="flex justify-end space-x-2">
+              
+              <div className="flex justify-end space-x-3 pt-4 border-t">
                 <button
                   type="button"
                   onClick={() => setShowEditModal(false)}
-                  className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-md"
+                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="bg-teal-500 hover:bg-teal-600 text-white px-4 py-2 rounded-md"
+                  className="px-4 py-2 rounded-md text-white bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 shadow-md transition-colors flex items-center"
                 >
-                  Update Lab
+                  <FaEdit className="mr-2" /> Update Lab
                 </button>
               </div>
             </form>
@@ -789,25 +906,29 @@ export default function LabsPage() {
       {/* Delete Lab Modal */}
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h2 className="text-xl font-bold mb-4">Delete Lab</h2>
-            <p className="mb-4">
-              Are you sure you want to delete{" "}
-              <span className="font-bold">{selectedLab?.name}</span>? This
-              action cannot be undone.
-            </p>
-            <div className="flex justify-end space-x-2">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+            <div className="text-center mb-6">
+              <div className="bg-red-100 p-3 rounded-full inline-flex items-center justify-center mb-4">
+                <FaTrash className="h-10 w-10 text-red-600" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-800">Delete Lab</h2>
+              <p className="text-gray-600 mt-2">
+                Are you sure you want to delete <span className="font-semibold">{selectedLab?.name}</span>? This action cannot be undone.
+              </p>
+            </div>
+            
+            <div className="flex justify-center space-x-4 pt-4 border-t">
               <button
                 onClick={() => setShowDeleteModal(false)}
-                className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-md"
+                className="px-5 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDelete}
-                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md"
+                className="px-5 py-2 rounded-md text-white bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 shadow-md transition-colors flex items-center"
               >
-                Delete
+                <FaTrash className="mr-2" /> Delete
               </button>
             </div>
           </div>

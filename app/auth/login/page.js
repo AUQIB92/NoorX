@@ -207,9 +207,9 @@ export default function LoginPage() {
           <div className="flex items-center justify-center mb-4">
             <FaHospital className="h-10 w-10 text-white" />
           </div>
-          <h2 className="text-2xl font-bold text-white text-center">Sehat</h2>
+          <h2 className="text-2xl font-bold text-white text-center">NoorX</h2>
           <p className="text-primary-100 text-center text-sm">
-            Your Health, Our Priority
+            Bringing comfort closer.
           </p>
         </div>
 

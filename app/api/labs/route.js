@@ -132,9 +132,17 @@ async function createLab(req, context) {
     });
     await labAdmin.save();
 
-    // Create new lab with lab admin reference
+    // Create new lab with lab admin reference and phone field directly set
     const lab = new Lab({
       ...body,
+      phone: body.contactInfo?.mobile || body.mobile || body.contactInfo?.phone || body.phone, // Prioritize mobile number
+      owner: labAdmin._id, // Set owner to the lab admin
+      // Convert complex address object to string
+      address: body.address?.street ? 
+        `${body.address.street}, ${body.address.city || ''}, ${body.address.state || ''} ${body.address.zipCode || ''}`.trim() : 
+        (body.address || ''),
+      // Always prioritize city from address for location
+      location: String(body.address?.city || body.city || body.location || body.address?.street || ''),
       labAdmin: labAdmin._id,
     });
     await lab.save();
@@ -155,7 +163,7 @@ async function createLab(req, context) {
   } catch (error) {
     console.error("Error creating lab:", error);
     return NextResponse.json(
-      { error: "Failed to create lab" },
+      { error: "Failed to create lab: " + error.message },
       { status: 500 }
     );
   }

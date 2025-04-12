@@ -84,7 +84,7 @@ export default function AppointmentConfirmation() {
             Appointment Confirmed
           </h1>
           <p className="text-indigo-100 mt-2">
-            Thank you for booking with Sehat
+            Thank you for booking with NoorX
           </p>
         </div>
 
@@ -341,9 +341,10 @@ export default function AppointmentConfirmation() {
                 <FaMapMarkerAlt className="mr-2" /> Location
               </h3>
               <div className="text-green-700">
-                <p className="font-medium">Sehat Center</p>
+                <p className="font-medium">NoorX Center</p>
                 <p>123 Medical Avenue, Srinagar</p>
                 <p>Jammu & Kashmir, India</p>
+                <p className="mt-2 text-sm italic">Bringing comfort closer.</p>
               </div>
             </div>
 

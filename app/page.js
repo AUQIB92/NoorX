@@ -27,9 +27,9 @@ export default function Home() {
                 <FaHospital className="h-12 w-12 text-primary-600" />
               </div>
               <div className="ml-4">
-                <div className="text-2xl font-bold tracking-tight">Sehat</div>
+                <div className="text-2xl font-bold tracking-tight">NoorX</div>
                 <div className="text-sm font-medium text-primary-100">
-                  Your Health, Our Priority
+                  Bringing comfort closer.
                 </div>
               </div>
             </div>
@@ -108,8 +108,7 @@ export default function Home() {
               Your Health Is Our Priority
             </h1>
             <p className="mt-3 max-w-md mx-auto text-base sm:text-lg md:mt-5 md:text-xl">
-              Book appointments with Sehat and Diagnostic Centre for quality
-              healthcare services.
+              Book appointments with NoorX - bringing light, ease, and intelligence to medical access.
             </p>
             <div className="mt-10">
               <Link
@@ -128,10 +127,10 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
             <h2 className="text-3xl font-extrabold text-gray-900 sm:text-4xl">
-              Why Choose Sehat Centre?
+              Why Choose NoorX Centre?
             </h2>
             <p className="mt-4 text-lg text-gray-600">
-              Comprehensive healthcare services under one roof
+              Your modern healthcare appointment platform
             </p>
           </div>
 
@@ -260,11 +259,10 @@ export default function Home() {
             <div>
               <div className="flex items-center mb-4">
                 <FaHospital className="h-8 w-8 text-primary-300 mr-2" />
-                <span className="text-xl font-bold">Sehat</span>
+                <span className="text-xl font-bold">NoorX</span>
               </div>
               <p className="text-gray-400">
-                Providing quality healthcare services with a focus on patient
-                comfort and care.
+                A healthcare appointment booking system designed to bring light, ease, and intelligence to medical access.
               </p>
             </div>
             <div>
@@ -286,7 +284,7 @@ export default function Home() {
           </div>
           <div className="border-t border-gray-700 mt-8 pt-8 text-center text-gray-400">
             <p>
-              &copy; {new Date().getFullYear()} Sehat and Diagnostic Centre. All
+              &copy; {new Date().getFullYear()} NoorX. All
               rights reserved.
             </p>
             <p className="flex items-center justify-center mt-2">

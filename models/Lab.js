@@ -124,9 +124,6 @@ labSchema.virtual('totalServices').get(function() {
   return this.services ? this.services.length : 0;
 });
 
-// Create index for location field
-labSchema.index({ location: "2dsphere" });
-
 // Ensure proper model registration
 const Lab = mongoose.models.Lab || mongoose.model("Lab", labSchema);
 

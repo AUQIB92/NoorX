@@ -68,25 +68,51 @@ async function updateLab(req, context) {
       }
     }
 
-    // Handle address specifically - if it's a complex object in the DB but a string in the input
+    // Handle phone field from either direct or nested location - prioritize mobile
+    if (body.contactInfo?.mobile) {
+      lab.phone = body.contactInfo.mobile;
+    } else if (body.mobile) {
+      lab.phone = body.mobile;
+    } else if (body.contactInfo?.phone) {
+      lab.phone = body.contactInfo.phone;
+    } else if (body.phone) {
+      lab.phone = body.phone;
+    }
+
+    // Handle address specifically - if it's a complex object
     if (body.address) {
-      // Preserve existing complex address if present
-      if (typeof lab.address === 'object' && lab.address !== null) {
-        // Skip updating address if the lab already has a complex object
-        console.log("Preserving existing complex address object");
+      if (typeof body.address === 'object') {
+        // Convert complex address object to string
+        lab.address = `${body.address.street || ''}, ${body.address.city || ''}, ${body.address.state || ''} ${body.address.zipCode || ''}`.trim();
+        
+        // Always update location from city when address is provided
+        if (body.address.city) {
+          lab.location = String(body.address.city);
+        }
       } else {
-        // Otherwise update with the string value
+        // It's already a string
         lab.address = body.address;
       }
       // Remove address from body to prevent further processing
       delete body.address;
     }
 
+    // Handle location field only if not already set from address city
+    if (body.location && (!body.address || !body.address.city)) {
+      lab.location = String(body.location);
+    } else if (body.city) {
+      lab.location = String(body.city);
+    }
+
+    // Ensure owner field is set
+    if (!lab.owner && lab.labAdmin) {
+      lab.owner = lab.labAdmin;
+    }
+
     // Update lab fields - only simple string/number/boolean fields
     const allowedFields = [
       "name", 
       "email", 
-      "phone", 
       "description", 
       "openingHours", 
       "website", 
@@ -103,8 +129,8 @@ async function updateLab(req, context) {
     // Special handling for nested objects or arrays
     // Add special case handlers here if needed
     
-    // Use save with validation disabled if needed
-    await lab.save({ validateBeforeSave: false });
+    // Use save with validation
+    await lab.save();
     console.log("Lab updated successfully");
 
     return NextResponse.json({

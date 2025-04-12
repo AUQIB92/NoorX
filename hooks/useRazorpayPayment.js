@@ -317,7 +317,7 @@ const useRazorpayPayment = () => {
         key: orderResponse.key_id,
         amount: orderResponse.order.amount,
         currency: orderResponse.order.currency,
-        name: "Sehat",
+        name: "NoorX",
         description: `Payment for ${serviceDetails.name} with Dr. ${doctorDetails.name}`,
         order_id: orderResponse.order.id,
         handler: async function (response) {
